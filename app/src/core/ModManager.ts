@@ -1,4 +1,5 @@
 import { readFileSync, writeFileSync, readdirSync, statSync, existsSync, mkdirSync, unlinkSync } from "fs";
+import { createHash } from "crypto";
 import { shell } from "electron";
 import { basename, join } from "path";
 import Properties from "./Properties";
@@ -49,18 +50,32 @@ class ModManager {
         return response.json();
     }
 
+    private static async registryEntries(): Promise<RegistryMetaData[]> {
+        const { plugins, themes } = await this.fetchMods();
+        return [...plugins, ...themes] as RegistryMetaData[];
+    }
+
+    private static sha256(data: Buffer | string): string {
+        return createHash("sha256").update(data).digest("hex");
+    }
+
     public static async downloadMod(modLink: string, type: "plugin" | "theme"): Promise<string> {
         this.logger.info(`Downloading ${type} from: ${modLink}`);
+        const entry = (await this.registryEntries()).find(e => e.download === modLink);
+        if (!entry?.sha256) throw new Error("It isn't in dx.bi's mod list.");
+
         const response = await fetch(modLink);
         if (!response.ok) throw new Error(`Failed to download: ${response.status}`);
-        
+
+        const buffer = Buffer.from(await response.arrayBuffer());
+        if (this.sha256(buffer) !== entry.sha256) throw new Error("The download doesn't match the copy in dx.bi's mod list, so it wasn't installed.");
+
         const saveDir = type === "plugin" ? Properties.pluginsPath : Properties.themesPath;
         if (!existsSync(saveDir)) mkdirSync(saveDir, { recursive: true });
-        
+
         const filename = basename(new URL(modLink).pathname) || `${type}-${Date.now()}`;
         const filePath = join(saveDir, filename);
 
-        const buffer = Buffer.from(await response.arrayBuffer());
         writeFileSync(filePath, buffer);
 
         this.logger.info(`Downloaded ${type} saved to: ${filePath}`);
@@ -85,7 +100,7 @@ class ModManager {
         newContent?: string;
         newMetaData?: MetaData;
         installedMetaData?: MetaData;
-        registryVersion?: string | null;
+        registryVerified?: boolean;
         updateUrl?: string;
     } | null> {
         const type = itemFile.endsWith(FILE_EXTENSIONS.THEME) ? "theme" : "plugin";
@@ -109,17 +124,15 @@ class ModManager {
             if (Helpers.isNewerVersion(extractedMetaData.version, installedMetaData.version)) {
                 this.logger.info(`New update found for plugin ${installedMetaData.name} (v${installedMetaData.version} -> v${extractedMetaData.version})`)
 
-                let registryVersion = null;
-                if (type === "plugin") {
-                    registryVersion = await this.getRegistryPluginVersion(itemFile);
-                }
-                
+                const hash = this.sha256(responseText);
+                const registryVerified = (await this.registryEntries().catch(() => [])).some(e => e.sha256 === hash);
+
                 return {
                     hasUpdate: true,
                     newContent: responseText,
                     newMetaData: extractedMetaData,
                     installedMetaData,
-                    registryVersion,
+                    registryVerified,
                     updateUrl: installedMetaData.updateUrl
                 };
             }
@@ -128,13 +141,6 @@ class ModManager {
             this.logger.error(`Error checking updates for ${itemFile}: ${(error as Error).message}`);
             return null;
         }
-    }
-
-    private static async getRegistryPluginVersion(itemFile: string): Promise<string | null> {
-        let registryData = await this.fetchMods();
-        let registryPlugins = registryData.plugins as unknown[] || [];
-        const plugin = registryPlugins.find(p => (p as RegistryMetaData).download?.endsWith(itemFile)) as RegistryMetaData | undefined;
-        return plugin ? plugin.version : null;
     }
 }
     

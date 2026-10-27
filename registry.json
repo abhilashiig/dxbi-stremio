@@ -1,0 +1,318 @@
+{
+  "plugins": [
+    {
+      "name": "Stremio AniSkip",
+      "author": "REVENGE977",
+      "description": "A plugin that integrates the AniSkip API into Stremio to automatically skip openings and endings when watching anime.",
+      "version": "1.0.0",
+      "repo": "https://github.com/REVENGE977/stremio-aniskip",
+      "download": "https://raw.githubusercontent.com/REVENGE977/stremio-aniskip/58f0e634e9f315258d821711a06738a6d998eaa3/dist/AniSkip.plugin.js",
+      "sha256": "6ba5dea499712a4939dc0c080eeca3716b7a5826a438a9ada2253c9006384b5f"
+    },
+    {
+      "name": "TheIntroDB",
+      "author": "TheIntroDB",
+      "description": "Skip intros, recaps, credits, and previews in TV shows and movies in Stremio Enhanced using TheIntroDB API",
+      "version": "1.2.1",
+      "repo": "https://github.com/TheIntroDB/stremio-enhanced-plugin",
+      "preview": "https://theintrodb.org/thumbnail.png",
+      "download": "https://github.com/TheIntroDB/stremio-enhanced-plugin/releases/download/v1.2.1/tidb.plugin.js",
+      "sha256": "e8cc484b0d9e929f3aa025b6d22b83dc1fedc7f4df5398cc245a3ace3f5cd22a"
+    },
+    {
+      "name": "Stremio Addon Manager",
+      "author": "Sul-404",
+      "description": "Enhanced UI for managing, reordering, and backing up addons.",
+      "version": "1.1.0",
+      "repo": "https://github.com/Sul-404/Stremio-Addon-Manager",
+      "download": "https://raw.githubusercontent.com/Sul-404/Stremio-Addon-Manager/578c22c7fb607198bb28c6fae056360c05c31eaa/addon-manager.1.1.0.plugin.js",
+      "sha256": "4070838b71cbbedbd85003ac5383d1f973fcf2e756f198df637d9a83911ded4c"
+    },
+    {
+      "name": "Slash to Search",
+      "author": "REVENGE977",
+      "description": "A simple plugin that allows you to search for movies, series, and anime by typing a slash (/) in the search bar.",
+      "version": "1.0.1",
+      "repo": "https://github.com/REVENGE977/stremio-slash-to-search",
+      "download": "https://raw.githubusercontent.com/REVENGE977/SlashToSearch/9cb7fc1e6ef1894d993eb6f705db7dad92cea47c/SlashToSearch.plugin.js",
+      "sha256": "6d5d7c0fd93729986397d1e70441079073d6a21eb8d4acd13edae9ea810a73ae"
+    },
+    {
+      "name": "FilterStreams",
+      "author": "0xA18",
+      "description": "Filters a movie's/tv show episode's streams",
+      "version": "0.1.6",
+      "repo": "https://github.com/0xA18/stremio-enhanced-plugins/",
+      "download": "https://github.com/0xA18/stremio-enhanced-plugins/releases/download/Beta-3.3/filter-streams.plugin.js",
+      "sha256": "4b68ce75363a323f61ccb83dca1b101dfa2f04bc24a2a67888e6345489d727fe"
+    },
+    {
+      "name": "CensorEmail",
+      "author": "0xA18",
+      "description": "Censors the user's email",
+      "repo": "https://github.com/0xA18/stremio-enhanced-plugins/",
+      "download": "https://github.com/0xA18/stremio-enhanced-plugins/releases/download/Beta/censor-email.plugin.js",
+      "sha256": "864e5315806fa517d313323d53c845979caa0424d89fed427eb35aa9e54d51c2"
+    },
+    {
+      "name": "Stremio Intro Skip",
+      "author": "shugi12345",
+      "description": "Community-powered “Skip Intro” for shows and movies in Stremio Enhanced.",
+      "version": "1.1.0",
+      "repo": "https://github.com/shugi12345/stremio-skip-button",
+      "download": "https://github.com/shugi12345/stremio-skip-button/releases/download/v1.1.0/skip-intro.plugin.js",
+      "sha256": "b5f11031120e02cf504bf021e4a91b7fd6e6f226983ca46ded2568a99908858c"
+    },
+    {
+      "name": "EnhancedCovers [Modern Glass]",
+      "author": "Fxy rewritten and improved by MrBlu03",
+      "description": "Widens the cover images in the Continue Watching section using background images with logo overlay.",
+      "version": "26.0.1",
+      "repo": "https://github.com/Fxy6969/Stremio-Glass-Theme",
+      "download": "https://github.com/Fxy6969/Stremio-Glass-Theme/releases/download/26.0.1/enhanced-covers.plugin.js",
+      "sha256": "d6100b7bf3115012ae48647d69d1857a48903bc3c5370f1484ef1c4564245bd5"
+    },
+    {
+      "name": "Enhanced Video Player [Modern Glass]",
+      "author": "Fxy",
+      "description": "Enhances the video player with additional features and designs.",
+      "version": "26.0.1",
+      "repo": "https://github.com/Fxy6969/Stremio-Glass-Theme",
+      "download": "https://github.com/Fxy6969/Stremio-Glass-Theme/releases/download/26.0.1/enhanced-player.plugin.js",
+      "sha256": "7f544c2e14e15c8784906358a7416e2ad3aaff03b1e87b2d28a2a578f0b4da9c"
+    },
+    {
+      "name": "Enhanced Title Bar [Modern Glass]",
+      "author": "Fxy",
+      "description": "Enhances the title bar with additional information.",
+      "version": "26.0.1",
+      "repo": "https://github.com/Fxy6969/Stremio-Glass-Theme",
+      "download": "https://github.com/Fxy6969/Stremio-Glass-Theme/releases/download/26.0.1/enhanced-titlebar.plugin.js",
+      "sha256": "39025854ef691547a7aa586ff56f98208a66282cbeebdf99cfbcddc3d6887d41"
+    },
+    {
+      "name": "Dynamic Hero [Modern Glass]",
+      "author": "Fxy",
+      "description": "Netflix-style rotating hero banner.",
+      "version": "26.0.1",
+      "repo": "https://github.com/Fxy6969/Stremio-Glass-Theme",
+      "download": "https://github.com/Fxy6969/Stremio-Glass-Theme/releases/download/26.0.1/hero-div.plugin.js",
+      "sha256": "079798057b95e89498371e16b2645ad09635cf3b42ca380ddcaa0705e376a274"
+    },
+    {
+      "name": "Horizontal Navigation [Modern Glass]",
+      "author": "Fxy",
+      "description": "Moves your vertical navigation bar to a horizontal position.",
+      "version": "26.0.1",
+      "repo": "https://github.com/Fxy6969/Stremio-Glass-Theme",
+      "download": "https://github.com/Fxy6969/Stremio-Glass-Theme/releases/download/26.0.1/horizontal-navigation.plugin.js",
+      "sha256": "1862b8544e558a46ec433183ba5685f117b89d25ee931bb78ce84891d1198c72"
+    },
+    {
+      "name": "Initializer [Modern Glass]",
+      "author": "Fxy",
+      "description": "Initializes plugins, checks for required dependencies and updates",
+      "version": "26.0.1",
+      "repo": "https://github.com/Fxy6969/Stremio-Glass-Theme",
+      "download": "https://github.com/Fxy6969/Stremio-Glass-Theme/releases/download/26.0.1/initializer.plugin.js",
+      "sha256": "90e1aad505e88c19b256376f442628f990fa44a1d1f1362b82f67ac462d948ce"
+    },
+    {
+      "name": "Picture in Picture [Modern Glass]",
+      "author": "Fxy",
+      "description": "Adds a picture in picture button to the video player.",
+      "version": "26.0.1",
+      "repo": "https://github.com/Fxy6969/Stremio-Glass-Theme",
+      "download": "https://github.com/Fxy6969/Stremio-Glass-Theme/releases/download/26.0.1/picture-in-picture.plugin.js",
+      "sha256": "3b8369bf82f3c18d6a51bb3b051e6891f318677694f40079ceb682ac1d3cd561"
+    },
+    {
+      "name": "Stremio Addon Manager",
+      "author": "Zcc09",
+      "description": "Reorganize and rename your Stremio addons from the client.",
+      "version": "1.8.1",
+      "repo": "https://github.com/Zcc09/stremio-addon-manager-plugin",
+      "download": "https://github.com/Zcc09/stremio-addon-manager-plugin/releases/download/Release/stremio-addon-manager.plugin.js",
+      "sha256": "2198076c63418494bef1564441dc05429e50a00a2f3bd35864937b2dee23b34d"
+    },
+    {
+      "name": "Stream Quality Picker",
+      "author": "JZOnTheGit",
+      "description": "Groups streams by resolution with smart ranking, visual badges, seeder strength bars, and one-tap Best Pick buttons.",
+      "version": "1.4.0",
+      "repo": "https://github.com/JZOnTheGit/stream-quality-picker",
+      "download": "https://github.com/JZOnTheGit/stream-quality-picker/releases/download/v1.4.0/stream-quality-picker.plugin.js",
+      "sha256": "2e096c8c1bc0d081fb180258a11da250adafe54ea665b3cba30ac4f1ea13547a"
+    },
+    {
+      "name": "Anilist Sync",
+      "author": "GefyDev",
+      "description": "Automated anime tracking plugin for Stremio Enhanced that seamlessly synchronizes your watched anime episodes with your AniList profile in real-time.",
+      "version": "1.0.0",
+      "repo": "https://github.com/gefydev/anilist-plugin-stremio",
+      "download": "https://github.com/gefydev/anilist-plugin-stremio/releases/download/v1.0.0/AniListSync.plugin.js",
+      "sha256": "15c6cddcd0744c088b00e2a9192f33c0e7780c239ffaa7cde24a16751f0e19d6"
+    },
+    {
+      "name": "ExpandStreamTitles",
+      "description": "Removes text truncation on stream links, allowing full release titles to display.",
+      "version": "1.0.1",
+      "author": "Enkvaros",
+      "download": "https://github.com/Enkvaros/stremio-enhanced-stream-titles-fixed/releases/download/v1.0.1/expand-stream-titles.plugin.js",
+      "sha256": "46db9c3637487b21ab456660a2ccf407e6b3b7d224c0d16c3d5e0019d3593c1d"
+    },
+    {
+      "name": "Stream Keyword Filter",
+      "author": "M-1u",
+      "description": "Filter a movie/episode's stream list by resolution, source, video/audio codec tags (REMUX, 2160p, x265, DTS...), plus free-text keywords. Save selections as reusable, editable presets.",
+      "version": "1.7.0",
+      "repo": "https://github.com/M-1u/stremio-stream-keyword-filter",
+      "download": "https://github.com/M-1u/stremio-stream-keyword-filter/releases/download/v1.7.0/stream-keyword-filter.plugin.js",
+      "sha256": "43855c245046d24d8dbce601a9209446abedd8b901f6a7a5c743210f892196e3"
+    },
+    {
+      "name": "Collapsible Filters",
+      "author": "M-1u",
+      "description": "Adds a toggle to collapse/expand the filters row on Discover and Library, to reclaim vertical space for the grid.",
+      "version": "1.3.3",
+      "repo": "https://github.com/M-1u/stremio-collapsible-filters",
+      "download": "https://github.com/M-1u/stremio-collapsible-filters/releases/download/v1.3.3/collapsible-filters.plugin.js",
+      "sha256": "5e987dc20e43959997eae5f521584328839aafdd81713d33098b2b3a24aeddba"
+    },
+    {
+      "name": "Library Stats",
+      "author": "M-1u",
+      "description": "A stats panel for your Stremio Library: totals, watched split, movies vs series, and per-folder counts (works with Library Folders). No network calls.",
+      "version": "1.0.9",
+      "repo": "https://github.com/M-1u/stremio-library-stats",
+      "download": "https://github.com/M-1u/stremio-library-stats/releases/download/v1.0.9/library-stats.plugin.js",
+      "sha256": "1107f6d32586577cf26cee866481aa8d1d542f78c75fe3dd318c0e2ad20b4ba2"
+    },
+    {
+      "name": "Close Preview Panel",
+      "author": "M-1u",
+      "description": "Close/reopen Discover's item preview panel to reclaim grid width, with a small tab to bring it back.",
+      "version": "1.1.0",
+      "repo": "https://github.com/M-1u/stremio-close-preview-panel",
+      "download": "https://github.com/M-1u/stremio-close-preview-panel/releases/download/v1.1.0/close-preview-panel.plugin.js",
+      "sha256": "d786c498a51e2cfc7a80b8a15404367e68e6feea6f96d17cd71cb323733e9e54"
+    },
+    {
+      "name": "Poster Size",
+      "author": "M-1u",
+      "description": "Choose the poster/card size (S/M/L/XL) on Discover and Library. Your choice is remembered.",
+      "version": "1.1.0",
+      "repo": "https://github.com/M-1u/stremio-poster-size",
+      "download": "https://github.com/M-1u/stremio-poster-size/releases/download/v1.1.0/poster-size.plugin.js",
+      "sha256": "446c99b8a8d269e522cc2093de64b32ce101f0a639dda3ecf5dc67a37c5beeb6"
+    },
+    {
+      "name": "Random Pick",
+      "author": "M-1u",
+      "description": "Jumps to a random item on Discover or Library, respecting active filters from other plugins (folders, watched, etc.).",
+      "version": "1.1.0",
+      "repo": "https://github.com/M-1u/stremio-random-pick",
+      "download": "https://github.com/M-1u/stremio-random-pick/releases/download/v1.1.0/random-pick.plugin.js",
+      "sha256": "dd397b2fc2a0c4445f0d06084e53215e8a6b7191007ae0882abb410f88e27b41"
+    },
+    {
+      "name": "Discover Watched Filter",
+      "author": "M-1u",
+      "description": "Adds a button to the Discover page to hide watched items, show only watched items, or show everything. Automatically keeps loading more pages when the current one is fully filtered out. 100% local.",
+      "version": "1.3.1",
+      "repo": "https://github.com/M-1u/stremio-discover-watched-filter",
+      "preview": "https://raw.githubusercontent.com/M-1u/stremio-discover-watched-filter/main/screenshots/hiding-watched.png",
+      "download": "https://github.com/M-1u/stremio-discover-watched-filter/releases/download/v1.3.1/discover-watched-filter.plugin.js",
+      "sha256": "c4c1ccb37285f9dfc892f3b9245b817b9df5478c1065c0aa8704e6498c53a496"
+    },
+    {
+      "name": "Library Folders",
+      "author": "M-1u",
+      "description": "Organize your Library into folders and subfolders — right-click or drag an item to file it away, rubber-band multi-select, and bulk actions (mark all watched/unwatched, remove all). 100% local, nothing is synced.",
+      "version": "1.6.2",
+      "repo": "https://github.com/M-1u/stremio-library-folders",
+      "preview": "https://raw.githubusercontent.com/M-1u/stremio-library-folders/main/screenshots/folders-grid.png",
+      "download": "https://github.com/M-1u/stremio-library-folders/releases/download/v1.6.2/library-folders.plugin.js",
+      "sha256": "f997f5d733b0ed2faf9289d827fe1c461be5e4937845756db6bb280d74d116cb"
+    },
+    {
+      "name": "Countdown Timer",
+      "author": "JackVonDanger",
+      "description": "Adds a countdown timer that pauses playback and exits the player after prolonged inactivity.",
+      "version": "1.0.0",
+      "repo": "https://github.com/JackVonDanger/stremio-countdown-timer",
+      "download": "https://github.com/JackVonDanger/stremio-countdown-timer/releases/download/v1.0.0/countdown-timer.plugin.js",
+      "sha256": "ff4fec46d484d6811c04ff732b0a5d893ea9e3b634f1db84ed0d01e848b98d16"
+    },
+    {
+      "name": "Stream Finder",
+      "author": "Echo",
+      "description": "Search box, quality (4K, 1080p, HDR, Dolby Vision) and audio-language filter chips for the streams list, plus a drag-to-resize streams sidebar.",
+      "version": "1.0.3",
+      "repo": "https://github.com/echodzns04/echo-stremio-plugins",
+      "preview": "https://raw.githubusercontent.com/echodzns04/echo-stremio-plugins/main/previews/stream-finder-preview.png",
+      "download": "https://raw.githubusercontent.com/echodzns04/echo-stremio-plugins/398cbd1d66ab51414879e2723b5f80607631c084/plugins/stream-finder.plugin.js",
+      "sha256": "f9400fb6dcd521bece9e8488d7907130d622cfa64b9a329e9d9a76f89c74d260"
+    },
+    {
+      "name": "Addon Organizer",
+      "author": "Echo",
+      "description": "Drag and drop your addons into the order you want, rename them, and show or hide their catalogs.",
+      "version": "1.0.2",
+      "repo": "https://github.com/echodzns04/echo-stremio-plugins",
+      "preview": "https://raw.githubusercontent.com/echodzns04/echo-stremio-plugins/main/previews/addon-organizer-preview.png",
+      "download": "https://raw.githubusercontent.com/echodzns04/echo-stremio-plugins/398cbd1d66ab51414879e2723b5f80607631c084/plugins/addon-organizer.plugin.js",
+      "sha256": "d601ff3c3356a7173cf23648168ea38c1d335ce38e1600d5998a81bc57931a80"
+    },
+    {
+      "name": "Lumen",
+      "author": "Echo",
+      "description": "A cinematic, TV-app style redesign: glass sidebar, rotating hero billboard, landscape Continue Watching, ranked Top rows and full-bleed detail pages.",
+      "version": "1.1.0",
+      "repo": "https://github.com/echodzns04/echo-stremio-plugins",
+      "preview": "https://raw.githubusercontent.com/echodzns04/echo-stremio-plugins/main/previews/lumen-preview.png",
+      "download": "https://raw.githubusercontent.com/echodzns04/echo-stremio-plugins/398cbd1d66ab51414879e2723b5f80607631c084/plugins/lumen.plugin.js",
+      "sha256": "f833f35a82d46e28c52c8531f17339ae4427159341b9c69ef00198812fd499fe"
+    },
+    {
+      "name": "dx.bi",
+      "author": "dx.bi",
+      "description": "The full dx.bi experience in one plugin, theme included: rotating billboard, Netflix-style hover previews with IMDb/Kitsu/AniList ratings, critic reviews and Rotten Tomatoes/Metacritic scores on title pages, Skip Intro & Next Episode (TheIntroDB + AniSkip), addon order & backup, subtitle styles, picture-in-picture, open in mpv/VLC, seek-bar thumbnails, black-bar removal and zoom, Dialogue boost and Night mode, one-click subtitle sync and second subtitles, Library sorting by year/rating/genre, stream sort and filter bar, end-to-end encrypted watch parties, optional Anime4K/sharpen picture enhancement, intro and UI sounds, and full keyboard browsing with the arrow keys. All configurable in Settings.",
+      "version": "2.17.0",
+      "repo": "https://github.com/notdxbi/dxbi-stremio",
+      "preview": "https://raw.githubusercontent.com/notdxbi/dxbi-stremio/main/screenshots/home.jpg",
+      "download": "https://raw.githubusercontent.com/notdxbi/dxbi-stremio/v2.17.0/dxbi.plugin.js",
+      "sha256": "89936208f0c4cfbfb3d0b62d61fb80a39c73069cb470fe2727cdd0ba2cf41eea"
+    }
+  ],
+  "themes": [
+    {
+      "name": "Modern Glass",
+      "author": "Fxy",
+      "description": "A theme that takes advantage of Modern Glass Styles with Light and Dark Theme.",
+      "version": "v26.0.1",
+      "repo": "https://github.com/Fxy6969/Stremio-Glass-Theme",
+      "download": "https://raw.githubusercontent.com/Fxy6969/Stremio-Glass-Theme/ffaa5573b1133365f985dce5513f8a88aed3818c/themes/liquid-glass.theme.css",
+      "sha256": "963ce7eb10122c09d6894adf0af05d44ed1a898fa037dd80d082ed02ea6b5ef0"
+    },
+    {
+      "name": "Amoled Dark",
+      "author": "REVENGE977",
+      "description": "A pitch black theme for stremio-enhanced",
+      "version": "1.0.3",
+      "repo": "https://github.com/REVENGE977/StremioAmoledTheme",
+      "preview": "https://github.com/REVENGE977/stremio-enhanced/raw/main/images/amoled_screenshot.png",
+      "download": "https://raw.githubusercontent.com/REVENGE977/StremioAmoledTheme/6c35d2f70c0101a003cf6f4b54ca51f056a11f00/amoled.theme.css",
+      "sha256": "939c388f989634152a42721098e04f91586467f406e6bc4360396afec2dbf23c"
+    },
+    {
+      "name": "Mint Dark",
+      "author": "JackVonDanger",
+      "description": "A theme for Stremio Enhanced that matches the Mint-Y-Dark colors",
+      "version": "1.0.0",
+      "repo": "https://github.com/JackVonDanger/stremio-mint-dark",
+      "download": "https://raw.githubusercontent.com/JackVonDanger/stremio-mint-dark/ff227b86e09777701ca7cbcbdcdcc6b90bdfd159/mint-y-dark.theme.css",
+      "sha256": "1a4d0ebca45e15311ea28b3dc2b4578a900544aece01e2b84cb90d23fb24ea50"
+    }
+  ]
+}

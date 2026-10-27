@@ -3,7 +3,8 @@ interface RegistryMetaData {
     author: string,
     version: string,
     repo: string,
-    download: string
+    download: string,
+    sha256: string
 }
 
 export default RegistryMetaData;

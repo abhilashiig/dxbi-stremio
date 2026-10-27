@@ -233,11 +233,10 @@ export const modController = {
             updateButton.style.display = "flex";
             updateButton.addEventListener("click", async () => {
                 
-                // Warn about non-registry updates for plugins
-                if (type === "plugin" && updateData.registryVersion !== updateData.newMetaData!.version) {
+                if (!updateData.registryVerified) {
                     const result = await ipcRenderer.invoke(
-                        'show-alert', "warning", "Confirm Update", 
-                        `This update for ${updateData.installedMetaData!.name} version (v${updateData.newMetaData!.version}) isn't submitted to the registry (Community Marketplace) yet, and thus has not been confirmed safe.\n\nAre you sure you want to update? It's recommended to read the source code of the update before updating.`, 
+                        'show-alert', "warning", "Confirm Update",
+                        `This update for ${updateData.installedMetaData!.name} (v${updateData.newMetaData!.version}) isn't in dx.bi's mod list yet, so it hasn't been checked.\n\nAre you sure you want to update? It's recommended to read the source code of the update before updating.`,
                         ["Yes", "No", "View Source Code"]
                     );
 

@@ -1,9 +1,10 @@
+import { ipcRenderer } from "electron";
 import ModManager from "../../../core/ModManager";
 import Helpers from "../../../utils/Helpers";
 import { getModsTabTemplate } from "../../../components/marketplace-tab/marketplaceTab";
 import { getModItemTemplate } from "../../../components/marketplace-item/marketplaceItem";
 import { getBackButton } from "../../../components/back-btn/backBtn";
-import { SELECTORS, CLASSES } from "../../../constants";
+import { SELECTORS, CLASSES, IPC_CHANNELS } from "../../../constants";
 import { modController } from "./modController";
 
 export function setupBrowseModsButton(): void {
@@ -57,13 +58,18 @@ export async function browseMods(): Promise<void> {
     
     const actionBtns = document.querySelectorAll(".modActionBtn");
     actionBtns.forEach((btn) => {
-        btn.addEventListener("click", () => {
+        btn.addEventListener("click", async () => {
             const link = btn.getAttribute("data-link");
             const type = btn.getAttribute("data-type")?.toLowerCase() as "plugin" | "theme";
             if (!link || !type) return;
-            
+
             if (btn.getAttribute("title") === "Install") {
-                ModManager.downloadMod(link, type);
+                try {
+                    await ModManager.downloadMod(link, type);
+                } catch (err) {
+                    ipcRenderer.invoke(IPC_CHANNELS.SHOW_ALERT, "error", "Install failed", (err as Error).message, ["OK"]);
+                    return;
+                }
                 btn.classList.remove(CLASSES.INSTALL_BUTTON);
                 btn.classList.add(CLASSES.UNINSTALL_BUTTON);
                 btn.setAttribute("title", "Uninstall");

@@ -9,6 +9,17 @@ changing the theme, copy it in before releasing:
 node tools/bundle-theme.mjs
 ```
 
+## Mod list
+
+`registry.json` is the list behind the app's plugin and theme browser. The app installs a file only
+if it matches the entry's `sha256`, and marks an update as checked only if its hash is in the list.
+Point `download` at a fixed copy (a release asset, or a commit SHA, not a branch), then hash it:
+
+```bash
+curl -sL "<download url>" | shasum -a 256
+node tools/check-registry.mjs   # re-downloads every entry and checks its hash
+```
+
 ## Intro
 
 The intro is rendered from code, so you can change it and re-render.

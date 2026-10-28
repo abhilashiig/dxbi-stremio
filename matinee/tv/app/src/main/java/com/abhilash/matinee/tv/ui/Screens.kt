@@ -76,16 +76,19 @@ fun SearchScreen() {
         results = runCatching { Repo.search(query.trim()) }.getOrDefault(emptyList())
         searching = false
     }
-    Column(Modifier.fillMaxSize().background(Color.Black).padding(top = TopBarHeight + 8.dp)) {
+    Column(Modifier.fillMaxSize().background(Color.Black).padding(top = 40.dp)) {
         InputField(query, { query = it }, "Search movies and series", Modifier.padding(horizontal = Edge).width(520.dp), imeAction = ImeAction.Search)
         Spacer(Modifier.height(20.dp))
         when {
             searching && results.isEmpty() -> Spinner(Modifier.padding(start = Edge))
             query.trim().length >= 2 && !searching && results.isEmpty() -> Text("Nothing found for \"$query\"", color = Muted, modifier = Modifier.padding(start = Edge))
         }
-        CompositionLocalProvider(LocalBringIntoViewSpec provides rememberPivot(RowTitleHeight)) {
-            LazyColumn {
-                items(results, key = { it.title }) { row ->
+        CompositionLocalProvider(LocalBringIntoViewSpec provides rememberPivot(40.dp)) {
+            // Before a search, the top rows from Home stand in, like Netflix's suggestions
+            val home by Repo.home.collectAsState()
+            val rows = if (query.trim().length < 2) home.take(3).map { SearchRow(it.title, it.items) } else results
+            LazyColumn(contentPadding = PaddingValues(bottom = 240.dp)) {
+                items(rows, key = { it.title }) { row ->
                     CompositionLocalProvider(LocalBringIntoViewSpec provides rememberPivot()) {
                         PosterRow(row.title, row.items, focusId, row.title, onFocus = { key, _ -> focusId = key }, onClick = { nav.push(Route.Details(it.type, it.id)) })
                     }
@@ -105,7 +108,7 @@ fun LibraryScreen() {
         items.filter { it.inLibrary && (types[filter].first == null || it.type == types[filter].first) }.sortedByDescending { it.mtime }
     }
     var focusId by rememberSaveable { mutableStateOf<String?>(null) }
-    Column(Modifier.fillMaxSize().background(Color.Black).padding(top = TopBarHeight + 8.dp)) {
+    Column(Modifier.fillMaxSize().background(Color.Black).padding(top = 40.dp)) {
         Row(Modifier.padding(horizontal = Edge), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             types.forEachIndexed { i, (_, label) ->
                 Button(onClick = { filter = i }) { Text(label, color = if (i == filter) Gold else Color.Unspecified, fontWeight = if (i == filter) FontWeight.Bold else FontWeight.Normal) }
@@ -120,7 +123,7 @@ fun LibraryScreen() {
         }
         LazyVerticalGrid(
             columns = GridCells.Adaptive(132.dp),
-            contentPadding = PaddingValues(start = Edge, end = Edge, bottom = 48.dp),
+            contentPadding = PaddingValues(start = Edge, end = Edge, top = 12.dp, bottom = 48.dp),
             horizontalArrangement = Arrangement.spacedBy(16.dp),
             verticalArrangement = Arrangement.spacedBy(20.dp),
         ) {
@@ -174,14 +177,16 @@ fun SettingsScreen() {
                 "Switches the TV to 24 Hz for films (and 50 Hz for 25 fps), so motion is smooth instead of juddering") {
                 Settings.matchFrameRate = !Settings.matchFrameRate
             },
-            Item("Audio language", languageLabel(Settings.audioLanguage, "Stream's default")) {
+            Item("Audio language", languageLabel(Settings.audioLanguage, "Same as TV"), "\"Same as TV\" uses the TV's language when a stream has it, else the stream's main track") {
                 Settings.audioLanguage = nextLanguage(Settings.audioLanguage, "").first
             },
             Item("Subtitles", languageLabel(Settings.subtitleLanguage, "Off"), "Subtitles in this language turn on automatically, from the stream or your subtitle addons") {
                 Settings.subtitleLanguage = nextLanguage(Settings.subtitleLanguage, "Off").first
             },
-            Item("Subtitle size", when { Settings.subtitleScale < 0.95f -> "Small"; Settings.subtitleScale > 1.05f -> "Large"; else -> "Medium" }) {
-                Settings.subtitleScale = when { Settings.subtitleScale < 0.95f -> 1f; Settings.subtitleScale > 1.05f -> 0.85f; else -> 1.25f }
+            Item("Subtitle size", Settings.subtitleSizeLabel) { Settings.nextSubtitleSize() },
+            Item("Subtitle colour", if (Settings.subtitleYellow) "Yellow" else "White") { Settings.subtitleYellow = !Settings.subtitleYellow },
+            Item("Subtitle background", if (Settings.subtitleBackground) "On" else "Off", "A dark box behind subtitles, for bright scenes") {
+                Settings.subtitleBackground = !Settings.subtitleBackground
             },
             Item("Tunneled playback", if (Settings.tunneling) "On" else "Off",
                 "Hands audio/video sync to the TV's chip. Try it if 4K HDR stutters or drifts out of sync; leave it off otherwise") {
@@ -195,10 +200,9 @@ fun SettingsScreen() {
             Item("About", "Matinee ${BuildConfig.VERSION_NAME}") {},
         )
     }
-    // The scrolling column must start below the tab bar: Down from a tab skips focus groups that overlap it
-    CompositionLocalProvider(LocalBringIntoViewSpec provides MinimalScroll) {
+    CompositionLocalProvider(LocalBringIntoViewSpec provides rememberMinimalScroll()) {
     Column(
-        Modifier.fillMaxSize().background(Color.Black).padding(top = TopBarHeight + 12.dp).verticalScroll(rememberScrollState())
+        Modifier.fillMaxSize().background(Color.Black).padding(top = 40.dp).verticalScroll(rememberScrollState())
             .padding(start = Edge, end = Edge, bottom = 48.dp),
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {

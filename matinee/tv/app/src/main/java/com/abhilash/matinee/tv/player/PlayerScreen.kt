@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -38,10 +39,13 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
@@ -70,13 +74,13 @@ import androidx.tv.material3.Icon
 import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
 import coil3.compose.AsyncImage
+import com.abhilash.matinee.tv.data.Settings
 import com.abhilash.matinee.tv.data.SubtitleTrack
 import com.abhilash.matinee.tv.ui.Gold
 import com.abhilash.matinee.tv.ui.Icons
 import com.abhilash.matinee.tv.ui.Muted
 import com.abhilash.matinee.tv.ui.Spinner
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 
 class PlayerUi {
     var playing by mutableStateOf(false)
@@ -87,6 +91,10 @@ class PlayerUi {
     var buffered by mutableLongStateOf(0)
     var tracks by mutableStateOf(Tracks.EMPTY)
     var badges by mutableStateOf(emptyList<String>())
+    var subtitles by mutableStateOf(emptyList<SubtitleTrack>())
+    var subtitlesLoading by mutableStateOf(false)
+    var subtitleDelayMs by mutableLongStateOf(0)
+    var styleVersion by mutableIntStateOf(0)
     var error by mutableStateOf<String?>(null)
     var toast by mutableStateOf<String?>(null)
     var dropWarning by mutableStateOf(false)
@@ -97,13 +105,18 @@ interface PlayerActions {
     fun seekTo(ms: Long)
     fun selectTrack(group: Tracks.Group, index: Int)
     fun subtitlesOff()
-    suspend fun addonSubtitles(): List<SubtitleTrack>
     fun useAddonSubtitle(track: SubtitleTrack)
     fun decodingForced(): Boolean
     fun toggleDecoding()
     fun retry()
     fun exit()
     fun infoLines(): List<String>
+    fun liftSubtitles(lift: Boolean)
+    fun nextSubtitleSize()
+    fun toggleSubtitleColour()
+    fun toggleSubtitleBackground()
+    // 0 resets; otherwise added to the current shift (positive shows subtitles later)
+    fun shiftSubtitles(ms: Long)
 }
 
 private enum class Panel { Tracks, Info }
@@ -213,6 +226,7 @@ fun PlayerScreen(view: PlayerView, ui: PlayerUi, actions: PlayerActions, request
         actions.seekTo(target)
         scrub = null
     }
+    LaunchedEffect(controls && panel == null) { actions.liftSubtitles(controls && panel == null) }
     LaunchedEffect(ui.toast) { if (ui.toast != null) { delay(4_000); ui.toast = null } }
     LaunchedEffect(ui.dropWarning) { if (ui.dropWarning) { delay(10_000); ui.dropWarning = false } }
     LaunchedEffect(controls, panel) {
@@ -394,46 +408,64 @@ private fun PillButton(icon: ImageVector, label: String, onClick: () -> Unit) {
     }
 }
 
-private class Choice(val label: String, val selected: Boolean, val onClick: (() -> Unit)?)
-
-// Netflix-style: audio and subtitles side by side, so switching both is one stop
+// Netflix-style: audio, subtitles and how they look side by side. The bottom stays see-through, so subtitle
+// size, colour and timing changes can be judged on the picture.
 @Composable
 private fun TracksPanel(ui: PlayerUi, actions: PlayerActions, close: () -> Unit) {
     val first = remember { FocusRequester() }
-    val scope = rememberCoroutineScope()
-    var addon by remember { mutableStateOf<List<SubtitleTrack>?>(null) }
-    var loadingAddon by remember { mutableStateOf(false) }
-
     val audio = trackRows(ui.tracks, C.TRACK_TYPE_AUDIO).map { (g, i, label) -> Choice(label, g.isTrackSelected(i)) { actions.selectTrack(g, i); close() } } +
         Choice("Decode audio on this device: ${if (actions.decodingForced()) "On" else "Off"}", false) { actions.toggleDecoding(); close() }
     val text = trackRows(ui.tracks, C.TRACK_TYPE_TEXT)
+    val loaded = text.mapNotNull { (g, i, _) -> g.getTrackFormat(i).id }
     val subtitles = listOf(Choice("Off", text.none { (g, i, _) -> g.isTrackSelected(i) }) { actions.subtitlesOff(); close() }) +
         text.map { (g, i, label) -> Choice(label, g.isTrackSelected(i)) { actions.selectTrack(g, i); close() } } +
+        ui.subtitles.filter { s -> loaded.none { it.contains("addon:${s.id}") } }.map { s ->
+            Choice("${languageName(s.lang)} · ${s.addon}", false, s.release) { actions.useAddonSubtitle(s); close() }
+        } +
         when {
-            addon != null -> addon!!.map { s -> Choice("${languageName(s.lang)} · addon", false) { actions.useAddonSubtitle(s); close() } }
-                .ifEmpty { listOf(Choice("No addon subtitles found", false, null)) }
-            loadingAddon -> listOf(Choice("Looking for addon subtitles…", false, null))
-            else -> listOf(Choice("More from your subtitle addons…", false) {
-                loadingAddon = true
-                scope.launch { addon = runCatching { actions.addonSubtitles() }.getOrDefault(emptyList()); loadingAddon = false }
-            })
+            ui.subtitlesLoading -> listOf(Choice("Looking for more in your subtitle addons…", false, onClick = null))
+            ui.subtitles.isEmpty() -> listOf(Choice("No addon subtitles for this title", false, onClick = null))
+            else -> emptyList()
         }
+    val delay = ui.subtitleDelayMs
+    val style = remember(ui.styleVersion, delay) { listOf(
+        Choice("Size: ${Settings.subtitleSizeLabel}", false) { actions.nextSubtitleSize() },
+        Choice("Colour: ${if (Settings.subtitleYellow) "Yellow" else "White"}", false) { actions.toggleSubtitleColour() },
+        Choice("Background: ${if (Settings.subtitleBackground) "On" else "Off"}", false) { actions.toggleSubtitleBackground() },
+        Choice("Show earlier  −0.25 s", false) { actions.shiftSubtitles(-250) },
+        Choice("Show later  +0.25 s", false) { actions.shiftSubtitles(250) },
+        Choice(if (delay == 0L) "Timing: in sync" else "Timing: %+.2f s · reset".format(delay / 1000f), false) { actions.shiftSubtitles(0) },
+    ) }
     val focusIndex = audio.indexOfFirst { it.selected }.coerceAtLeast(0)
 
-    Box(Modifier.fillMaxSize().background(Color(0xEB000000)), contentAlignment = Alignment.Center) {
-        Row(horizontalArrangement = Arrangement.spacedBy(64.dp), modifier = Modifier.fillMaxHeight().padding(vertical = 64.dp)) {
-            ChoiceColumn("Audio", audio, focusIndex, first)
-            ChoiceColumn("Subtitles", subtitles, -1, null)
+    Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0f to Color(0xF2000000), 0.7f to Color(0xE6000000), 1f to Color(0x40000000)))) {
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(28.dp),
+            modifier = Modifier.align(Alignment.TopCenter).fillMaxHeight(0.78f).padding(top = 40.dp),
+        ) {
+            ChoiceColumn("Audio", audio, 260.dp, focusIndex, first)
+            ChoiceColumn("Subtitles", subtitles, 330.dp, -1, null)
+            ChoiceColumn("Subtitle style", style, 250.dp, -1, null)
         }
     }
     LaunchedEffect(Unit) { runCatching { first.requestFocus() } }
 }
 
+private class Choice(val label: String, val selected: Boolean, val detail: String? = null, val onClick: (() -> Unit)?)
+
 @Composable
-private fun ChoiceColumn(title: String, choices: List<Choice>, focusIndex: Int, requester: FocusRequester?) {
-    Column(Modifier.width(400.dp)) {
-        Text(title, fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Color.White, modifier = Modifier.padding(start = 12.dp, bottom = 14.dp))
-        LazyColumn(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+private fun ChoiceColumn(title: String, choices: List<Choice>, width: Dp, focusIndex: Int, requester: FocusRequester?) {
+    Column(Modifier.width(width)) {
+        Text(title, fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Color.White, modifier = Modifier.padding(start = 10.dp, bottom = 12.dp))
+        // Long lists fade out at the bottom instead of being cut mid-line
+        LazyColumn(
+            verticalArrangement = Arrangement.spacedBy(2.dp),
+            contentPadding = PaddingValues(bottom = 48.dp),
+            modifier = Modifier.graphicsLayer(compositingStrategy = CompositingStrategy.Offscreen).drawWithContent {
+                drawContent()
+                drawRect(Brush.verticalGradient(0.82f to Color.Black, 1f to Color.Transparent), blendMode = BlendMode.DstIn)
+            },
+        ) {
             items(choices.size) { i ->
                 val c = choices[i]
                 Surface(
@@ -444,9 +476,12 @@ private fun ChoiceColumn(title: String, choices: List<Choice>, focusIndex: Int, 
                         focusedContainerColor = Color.White, focusedContentColor = Color.Black),
                     scale = ClickableSurfaceDefaults.scale(focusedScale = 1f),
                 ) {
-                    Row(Modifier.padding(horizontal = 12.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Box(Modifier.width(28.dp)) { if (c.selected) Icon(Icons.Check, "Selected", Modifier.size(20.dp)) }
-                        Text(c.label, fontSize = 16.sp, fontWeight = if (c.selected) FontWeight.Bold else FontWeight.Normal)
+                    Row(Modifier.padding(horizontal = 10.dp, vertical = 9.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Box(Modifier.width(26.dp)) { if (c.selected) Icon(Icons.Check, "Selected", Modifier.size(18.dp)) }
+                        Column {
+                            Text(c.label, fontSize = 15.sp, fontWeight = if (c.selected) FontWeight.Bold else FontWeight.Normal, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                            c.detail?.let { Text(it, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.alpha(0.7f)) }
+                        }
                     }
                 }
             }
@@ -484,7 +519,11 @@ private fun trackRows(tracks: Tracks, type: Int): List<Triple<Tracks.Group, Int,
         (0 until g.length).filter { g.isTrackSupported(it) }.map { i ->
             val f = g.getTrackFormat(i)
             val label = if (type == C.TRACK_TYPE_AUDIO) audioLabel(f)
-            else listOfNotNull(f.label ?: languageName(f.language), if ((f.selectionFlags and C.SELECTION_FLAG_FORCED) != 0) "forced" else null).joinToString(" · ")
+            else {
+                val name = f.label ?: languageName(f.language)
+                val forced = (f.selectionFlags and C.SELECTION_FLAG_FORCED) != 0 && !name.contains("forced", true)
+                if (forced) "$name · forced" else name
+            }
             Triple(g, i, label)
         }
     }

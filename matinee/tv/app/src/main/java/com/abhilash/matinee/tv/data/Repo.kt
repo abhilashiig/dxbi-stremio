@@ -10,13 +10,16 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.channelFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
 import java.util.concurrent.ConcurrentHashMap
 
 @Immutable
-data class HomeRow(val key: String, val title: String, val items: List<MetaPreview>)
+data class HomeRow(val key: String, val title: String, val items: List<MetaPreview>) {
+    val type get() = key.split('|').getOrNull(1)
+}
 
 @Immutable
 data class AddonStreams(val addon: String, val streams: List<StreamInfo>, val failed: Boolean)
@@ -102,16 +105,23 @@ object Repo {
         }
     }
 
-    suspend fun subtitles(type: String, videoId: String): List<SubtitleTrack> = coroutineScope {
-        _addons.value.filter { it.supports("subtitles", type, videoId) }.map { addon ->
-            async {
-                runCatching {
-                    Http.get(addon.url("subtitles", type, videoId)).optJSONArray("subtitles").mapObjects { s ->
-                        SubtitleTrack(s.str("url") ?: return@mapObjects null, s.str("lang") ?: "und", s.str("id") ?: s.optString("url"))
-                    }
-                }.getOrDefault(emptyList())
+    // Each addon's subtitles as they arrive: a slow addon doesn't hold back the others
+    fun subtitles(type: String, videoId: String): Flow<List<SubtitleTrack>> = channelFlow {
+        _addons.value.filter { it.supports("subtitles", type, videoId) }.forEach { addon ->
+            launch {
+                val subs = withTimeoutOrNull(10_000) {
+                    runCatching {
+                        Http.get(addon.url("subtitles", type, videoId)).optJSONArray("subtitles").mapObjects { s ->
+                            SubtitleTrack(
+                                url = s.str("url") ?: return@mapObjects null, lang = s.str("lang") ?: "und", id = s.str("id") ?: s.optString("url"),
+                                addon = addon.name, release = s.str("subtitleFileName") ?: s.str("movieReleaseName"),
+                            )
+                        }
+                    }.getOrNull()
+                }
+                if (!subs.isNullOrEmpty()) send(subs)
             }
-        }.awaitAll().flatten().distinctBy { it.url }
+        }
     }
 
     suspend fun search(query: String): List<SearchRow> = coroutineScope {

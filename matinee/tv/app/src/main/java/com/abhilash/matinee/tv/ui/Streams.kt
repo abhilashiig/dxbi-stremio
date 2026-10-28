@@ -47,9 +47,6 @@ import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Border
 import androidx.tv.material3.Button
 import androidx.tv.material3.ClickableSurfaceDefaults
-import androidx.tv.material3.ExperimentalTvMaterial3Api
-import androidx.tv.material3.FilterChip
-import androidx.tv.material3.FilterChipDefaults
 import androidx.tv.material3.Icon
 import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
@@ -138,12 +135,12 @@ fun StreamsScreen(route: Route.Streams) {
                 if (ranked.isNotEmpty()) {
                     LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.focusRestorer()) {
                         item {
-                            Filter("Instant only", instant, icon = true) { instant = !instant; Settings.instantOnly = instant }
+                            FilterPill("Instant only", instant, icon = true) { instant = !instant; Settings.instantOnly = instant }
                         }
                         item { Spacer(Modifier.width(12.dp)) }
-                        item { Filter("All addons", addon == null) { addon = null; Settings.preferredAddon = null } }
+                        item { FilterPill("All addons", addon == null) { addon = null; Settings.preferredAddon = null } }
                         items(addons, key = { it }) { a ->
-                            Filter("$a  ${pool.count { it.stream.addon == a }}", addon == a) {
+                            FilterPill("$a  ${pool.count { it.stream.addon == a }}", addon == a) {
                                 addon = if (addon == a) null else a
                                 Settings.preferredAddon = addon
                             }
@@ -151,9 +148,9 @@ fun StreamsScreen(route: Route.Streams) {
                     }
                     Spacer(Modifier.height(8.dp))
                     LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.focusRestorer()) {
-                        item { Filter("All qualities", only == null) { only = null } }
+                        item { FilterPill("All qualities", only == null) { only = null } }
                         items(QUALITIES.filter { (qualityCounts[it] ?: 0) > 0 || it == only }, key = { it }) { q ->
-                            Filter("$q  ${qualityCounts[q] ?: 0}", only == q) { only = if (only == q) null else q }
+                            FilterPill("$q  ${qualityCounts[q] ?: 0}", only == q) { only = if (only == q) null else q }
                         }
                     }
                     Spacer(Modifier.height(14.dp))
@@ -200,22 +197,6 @@ fun StreamsScreen(route: Route.Streams) {
         withFrameNanos { }
         runCatching { first.requestFocus() }
     }
-}
-
-@OptIn(ExperimentalTvMaterial3Api::class)
-@Composable
-private fun Filter(label: String, selected: Boolean, icon: Boolean = false, onClick: () -> Unit) {
-    FilterChip(
-        selected = selected,
-        onClick = onClick,
-        leadingIcon = if (icon) { { Icon(Icons.Bolt, null, Modifier.size(16.dp)) } } else null,
-        colors = FilterChipDefaults.colors(
-            containerColor = Color(0x33FFFFFF), contentColor = Color.White,
-            focusedContainerColor = Color.White, focusedContentColor = Color.Black,
-            selectedContainerColor = Gold.copy(alpha = 0.85f), selectedContentColor = Color.Black,
-            focusedSelectedContainerColor = Gold, focusedSelectedContentColor = Color.Black,
-        ),
-    ) { Text(label, fontSize = 13.sp, fontWeight = FontWeight.SemiBold) }
 }
 
 @Composable

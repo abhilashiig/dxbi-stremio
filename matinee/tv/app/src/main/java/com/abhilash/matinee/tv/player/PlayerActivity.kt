@@ -41,6 +41,13 @@ import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
 import androidx.media3.exoplayer.video.VideoFrameMetadataListener
 import androidx.media3.extractor.DefaultExtractorsFactory
 import androidx.media3.ui.PlayerView
+import androidx.media3.exoplayer.ForwardingRenderer
+import androidx.media3.exoplayer.Renderer
+import androidx.media3.exoplayer.text.TextOutput
+import androidx.media3.ui.CaptionStyleCompat
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.first
 import androidx.media3.ui.SubtitleView
 import com.abhilash.matinee.tv.MatineeApp
 import com.abhilash.matinee.tv.data.Http
@@ -112,7 +119,11 @@ class PlayerActivity : ComponentActivity(), PlayerActions {
     private var audioAutoPicked = false
     private var audioPickedByUser = false
     private var modeSwitched = false
-    private var addonSubtitles: List<SubtitleTrack>? = null
+    private val addonSubtitles = MutableStateFlow<List<SubtitleTrack>>(emptyList())
+    private var subtitleJob: Job? = null
+    private var autoSubtitleDone = false
+    // Read on the playback thread by the text renderer wrapper
+    @Volatile private var subtitleDelayUs = 0L
     private var sideLoaded: List<SubtitleTrack> = emptyList()
     private var pendingSubtitleId: String? = null
     private var videoDecoder = ""
@@ -136,8 +147,8 @@ class PlayerActivity : ComponentActivity(), PlayerActions {
             useController = false
             keepScreenOn = true
             setShutterBackgroundColor(android.graphics.Color.BLACK)
-            subtitleView?.setFractionalTextSize(SubtitleView.DEFAULT_TEXT_SIZE_FRACTION * Settings.subtitleScale)
         }
+        applySubtitleStyle()
         setContent { MatineeTheme { PlayerScreen(playerView, ui, this, request) } }
         getSystemService(AudioManager::class.java).registerAudioDeviceCallback(deviceCallback, handler)
     }
@@ -165,10 +176,21 @@ class PlayerActivity : ComponentActivity(), PlayerActions {
         val type = request.type
         val videoId = request.videoId
         val subtitleLanguage = Settings.subtitleLanguage
-        // With a subtitle language set, addon subtitles in it are added up front (waiting at most 1.5 s for them)
-        if (subtitleLanguage != null && type != null && videoId != null && addonSubtitles == null) {
-            addonSubtitles = withTimeoutOrNull(1_500) { Repo.subtitles(type, videoId) }
-            sideLoaded = addonSubtitles.orEmpty().filter { sameLanguage(it.lang, subtitleLanguage) }.take(3)
+        if (subtitleJob == null && type != null && videoId != null) {
+            ui.subtitlesLoading = true
+            subtitleJob = lifecycleScope.launch {
+                Repo.subtitles(type, videoId).collect { more ->
+                    addonSubtitles.value = rankSubtitles(addonSubtitles.value + more, Settings.subtitleLanguage, Locale.getDefault().language, request.streamText.orEmpty())
+                    ui.subtitles = addonSubtitles.value
+                    maybeAutoSubtitle()
+                }
+                ui.subtitlesLoading = false
+            }
+            // With a subtitle language set, a matching addon subtitle is added up front if one comes within 1.5 s
+            if (subtitleLanguage != null) {
+                withTimeoutOrNull(1_500) { addonSubtitles.first { list -> list.any { sameLanguage(it.lang, subtitleLanguage) } } }
+                addonSubtitles.value.firstOrNull { sameLanguage(it.lang, subtitleLanguage) }?.let { sideLoaded = listOf(it); autoSubtitleDone = true }
+            }
         }
         if (isFinishing || player != null) return
         val p = buildPlayer()
@@ -195,12 +217,21 @@ class PlayerActivity : ComponentActivity(), PlayerActions {
                 if (forcePcm) builder.setAudioCapabilities(AudioCapabilities.DEFAULT_AUDIO_CAPABILITIES)
                 return builder.build()
             }
+
+            // Subtitle timing: the text renderer is told a shifted position, so cues show earlier or later
+            override fun buildTextRenderers(context: Context, output: TextOutput, outputLooper: Looper, extensionRendererMode: Int, out: ArrayList<Renderer>) {
+                val start = out.size
+                super.buildTextRenderers(context, output, outputLooper, extensionRendererMode, out)
+                for (i in start until out.size) out[i] = object : ForwardingRenderer(out[i]) {
+                    override fun render(positionUs: Long, elapsedRealtimeUs: Long) = super.render(positionUs - subtitleDelayUs, elapsedRealtimeUs)
+                }
+            }
         }.setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_ON).setEnableDecoderFallback(true)
 
         val trackSelector = DefaultTrackSelector(this).also { selector = it }
         trackSelector.parameters = trackSelector.buildUponParameters()
             .setTunnelingEnabled(Settings.tunneling)
-            .setPreferredAudioLanguage(Settings.audioLanguage)
+            .setPreferredAudioLanguage(audioLanguage())
             .setPreferredAudioMimeTypes(*audioMimePreference(audio.passthrough, audio.maxPcmChannels).toTypedArray())
             .setPreferredTextLanguage(Settings.subtitleLanguage)
             .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, Settings.subtitleLanguage == null)
@@ -237,7 +268,7 @@ class PlayerActivity : ComponentActivity(), PlayerActions {
                 .setId("addon:${s.id}")
                 .setMimeType(subtitleMime(s.url))
                 .setLanguage(s.lang)
-                .setLabel("${languageName(s.lang)} · addon")
+                .setLabel("${languageName(s.lang)} · ${s.addon.ifEmpty { "addon" }}")
                 .build()
         })
         .build()
@@ -277,6 +308,7 @@ class PlayerActivity : ComponentActivity(), PlayerActions {
             ui.tracks = tracks
             autoPickAudio(tracks)
             selectPendingSubtitle(tracks)
+            maybeAutoSubtitle()
             selectedFormat(tracks, C.TRACK_TYPE_VIDEO)?.frameRate?.takeIf { it > 0 }?.let { matchFrameRate(it) }
         }
 
@@ -371,7 +403,7 @@ class PlayerActivity : ComponentActivity(), PlayerActions {
                 val f = g.getTrackFormat(i)
                 AudioOption(f.language, f.sampleMimeType, f.channelCount, (f.selectionFlags and C.SELECTION_FLAG_DEFAULT) != 0)
             },
-            Settings.audioLanguage,
+            audioLanguage(),
             audioMimePreference(audio.passthrough, audio.maxPcmChannels),
         ) ?: return
         val (group, index) = options[picked]
@@ -481,10 +513,48 @@ class PlayerActivity : ComponentActivity(), PlayerActions {
         p.trackSelectionParameters = p.trackSelectionParameters.buildUpon().setTrackTypeDisabled(C.TRACK_TYPE_TEXT, true).build()
     }
 
-    override suspend fun addonSubtitles(): List<SubtitleTrack> {
-        val type = request.type ?: return emptyList()
-        val videoId = request.videoId ?: return emptyList()
-        return addonSubtitles ?: Repo.subtitles(type, videoId).also { addonSubtitles = it }
+    // A subtitle language is set but neither the stream nor the up-front pick had it: use the best addon one once it arrives
+    private fun maybeAutoSubtitle() {
+        val language = Settings.subtitleLanguage ?: return
+        val p = player ?: return
+        if (autoSubtitleDone || p.currentTracks.isEmpty) return
+        val embedded = p.currentTracks.groups.any { g -> g.type == C.TRACK_TYPE_TEXT && (0 until g.length).any { sameLanguage(g.getTrackFormat(it).language, language) } }
+        if (embedded) { autoSubtitleDone = true; return }
+        val best = addonSubtitles.value.firstOrNull { sameLanguage(it.lang, language) } ?: return
+        autoSubtitleDone = true
+        useAddonSubtitle(best)
+    }
+
+    private fun applySubtitleStyle() {
+        val view = playerView.subtitleView ?: return
+        view.setFractionalTextSize(SubtitleView.DEFAULT_TEXT_SIZE_FRACTION * Settings.subtitleScale)
+        view.setStyle(CaptionStyleCompat(
+            if (Settings.subtitleYellow) 0xFFFFE14D.toInt() else android.graphics.Color.WHITE,
+            if (Settings.subtitleBackground) 0xB3000000.toInt() else android.graphics.Color.TRANSPARENT,
+            android.graphics.Color.TRANSPARENT,
+            if (Settings.subtitleBackground) CaptionStyleCompat.EDGE_TYPE_NONE else CaptionStyleCompat.EDGE_TYPE_OUTLINE,
+            android.graphics.Color.BLACK,
+            null,
+        ))
+    }
+
+    // No language chosen: the TV's own language when the stream has it, else the stream's default track
+    private fun audioLanguage() = Settings.audioLanguage ?: Locale.getDefault().language
+
+    // Subtitles move up while the controls are showing, so they never sit under the buttons
+    override fun liftSubtitles(lift: Boolean) {
+        playerView.subtitleView?.setBottomPaddingFraction(if (lift) 0.26f else SubtitleView.DEFAULT_BOTTOM_PADDING_FRACTION)
+    }
+
+    override fun nextSubtitleSize() { Settings.nextSubtitleSize(); applySubtitleStyle(); ui.styleVersion++ }
+
+    override fun toggleSubtitleColour() { Settings.subtitleYellow = !Settings.subtitleYellow; applySubtitleStyle(); ui.styleVersion++ }
+
+    override fun toggleSubtitleBackground() { Settings.subtitleBackground = !Settings.subtitleBackground; applySubtitleStyle(); ui.styleVersion++ }
+
+    override fun shiftSubtitles(ms: Long) {
+        ui.subtitleDelayMs = if (ms == 0L) 0 else ui.subtitleDelayMs + ms
+        subtitleDelayUs = ui.subtitleDelayMs * 1000
     }
 
     // Adding a subtitle file means re-preparing at the same spot; it's selected once its track appears
@@ -651,3 +721,17 @@ fun formatBadges(
         when (if (passthrough) audio.channelCount else outputChannels) { 6 -> add("5.1"); 8 -> add("7.1") }
     }
 }
+
+// Best first: the subtitle language from settings, then the TV's own language, then the rest by name. Within a
+// language, files named like this release (same group, source and cut) come first, as they're most likely in sync.
+fun rankSubtitles(subs: List<SubtitleTrack>, preferred: String?, deviceLanguage: String, streamText: String): List<SubtitleTrack> {
+    val release = tokens(streamText)
+    return subs.distinctBy { it.url }.sortedWith(
+        compareByDescending<SubtitleTrack> { sameLanguage(it.lang, preferred) }
+            .thenByDescending { sameLanguage(it.lang, deviceLanguage) }
+            .thenBy { languageName(it.lang) }
+            .thenByDescending { s -> tokens(s.release.orEmpty()).count { it in release } }
+    )
+}
+
+private fun tokens(text: String) = text.lowercase().split(Regex("[^a-z0-9]+")).filter { it.length >= 3 }.toSet()

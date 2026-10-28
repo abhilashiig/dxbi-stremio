@@ -110,6 +110,21 @@ object Settings {
         get() = prefs.getFloat("subtitleScale", 1f)
         set(v) = prefs.edit().putFloat("subtitleScale", v).apply()
 
+    val subtitleSizes = listOf(0.8f to "Small", 1f to "Medium", 1.25f to "Large", 1.5f to "Extra large")
+    val subtitleSizeLabel get() = subtitleSizes.minBy { kotlin.math.abs(it.first - subtitleScale) }.second
+    fun nextSubtitleSize() {
+        val i = subtitleSizes.indexOfFirst { it.second == subtitleSizeLabel }
+        subtitleScale = subtitleSizes[(i + 1) % subtitleSizes.size].first
+    }
+
+    var subtitleYellow: Boolean
+        get() = prefs.getBoolean("subtitleYellow", false)
+        set(v) = prefs.edit().putBoolean("subtitleYellow", v).apply()
+
+    var subtitleBackground: Boolean
+        get() = prefs.getBoolean("subtitleBackground", false)
+        set(v) = prefs.edit().putBoolean("subtitleBackground", v).apply()
+
     var instantOnly: Boolean
         get() = prefs.getBoolean("instantOnly", true)
         set(v) = prefs.edit().putBoolean("instantOnly", v).apply()

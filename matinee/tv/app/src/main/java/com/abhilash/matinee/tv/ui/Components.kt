@@ -14,6 +14,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.BringIntoViewSpec
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.PaddingValues
@@ -37,6 +38,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
@@ -48,6 +50,7 @@ import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.graphics.Color
@@ -71,6 +74,10 @@ import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Border
 import androidx.tv.material3.Card
 import androidx.tv.material3.CardDefaults
+import androidx.tv.material3.ExperimentalTvMaterial3Api
+import androidx.tv.material3.FilterChip
+import androidx.tv.material3.FilterChipDefaults
+import androidx.tv.material3.Icon
 import androidx.tv.material3.Glow
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
@@ -79,6 +86,10 @@ import androidx.tv.material3.ClickableSurfaceDefaults
 import androidx.tv.material3.darkColorScheme
 import coil3.compose.AsyncImage
 import com.abhilash.matinee.tv.data.MetaPreview
+
+// The card that last had focus on a page, so coming back from the rail lands on it again
+class LastFocus { var requester: FocusRequester? = null }
+val LocalLastFocus = staticCompositionLocalOf { LastFocus() }
 
 val Gold = Color(0xFFF2B441)
 val Muted = Color(0xFFA8A8A8)
@@ -101,15 +112,23 @@ fun startPivot(leadingPx: Float) = object : BringIntoViewSpec {
     override fun calculateScrollDistance(offset: Float, size: Float, containerSize: Float) = offset - leadingPx
 }
 
-// Compose's TV default parks focus 30% down the screen; pages like Details only scroll when focus would be hidden
+// Compose's TV default parks focus 30% down the screen; pages like Details only scroll when focus would be hidden,
+// keeping a margin so a focused item's border and scale never touch the screen edge
 @OptIn(ExperimentalFoundationApi::class)
-val MinimalScroll = object : BringIntoViewSpec {
-    override fun calculateScrollDistance(offset: Float, size: Float, containerSize: Float): Float {
-        val end = offset + size
-        return when {
-            offset >= 0 && end <= containerSize -> 0f
-            offset < 0 || size > containerSize -> offset
-            else -> end - containerSize
+@Composable
+fun rememberMinimalScroll(margin: Dp = 36.dp): BringIntoViewSpec {
+    val px = with(LocalDensity.current) { margin.toPx() }
+    return remember(px) {
+        object : BringIntoViewSpec {
+            override fun calculateScrollDistance(offset: Float, size: Float, containerSize: Float): Float {
+                val start = offset - px
+                val end = offset + size + px
+                return when {
+                    start >= 0 && end <= containerSize -> 0f
+                    start < 0 || end - start > containerSize -> start
+                    else -> end - containerSize
+                }
+            }
         }
     }
 }
@@ -125,11 +144,12 @@ fun PosterRow(
     onFocus: (String, MetaPreview) -> Unit,
     onClick: (MetaPreview) -> Unit,
 ) {
-    Column(Modifier.padding(bottom = 18.dp)) {
-        Text(title, fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = Color.White, modifier = Modifier.padding(start = Edge, bottom = 10.dp))
+    Column(Modifier.padding(bottom = 6.dp)) {
+        Text(title, fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = Color.White, modifier = Modifier.padding(start = Edge))
+        // Vertical room so a focused card's scale and glow aren't clipped by the row
         LazyRow(
             state = rememberLazyListState(),
-            contentPadding = PaddingValues(horizontal = Edge),
+            contentPadding = PaddingValues(horizontal = Edge, vertical = 12.dp),
             horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(14.dp),
             modifier = Modifier.focusRestorer(),
         ) {
@@ -151,9 +171,11 @@ fun PosterCard(
     onClick: () -> Unit,
 ) {
     val requester = remember { FocusRequester() }
+    val last = LocalLastFocus.current
     Card(
         onClick = onClick,
-        modifier = Modifier.size(width, width * 1.5f).focusRequester(requester).onFocusChanged { if (it.isFocused) onFocus() },
+        // 2:3 at whatever width the row or grid gives it, so posters are never cropped out of shape
+        modifier = Modifier.width(width).aspectRatio(2f / 3f).focusRequester(requester).onFocusChanged { if (it.isFocused) { last.requester = requester; onFocus() } },
         shape = CardDefaults.shape(RoundedCornerShape(6.dp)),
         scale = CardDefaults.scale(focusedScale = 1.1f),
         border = CardDefaults.border(focusedBorder = Border(BorderStroke(2.dp, Color.White), shape = RoundedCornerShape(6.dp))),
@@ -290,3 +312,20 @@ fun SkeletonRows(modifier: Modifier = Modifier) {
         }
     }
 }
+
+@OptIn(ExperimentalTvMaterial3Api::class)
+@Composable
+fun FilterPill(label: String, selected: Boolean, icon: Boolean = false, onClick: () -> Unit) {
+    FilterChip(
+        selected = selected,
+        onClick = onClick,
+        leadingIcon = if (icon) { { Icon(Icons.Bolt, null, Modifier.size(16.dp)) } } else null,
+        colors = FilterChipDefaults.colors(
+            containerColor = Color(0x33FFFFFF), contentColor = Color.White,
+            focusedContainerColor = Color.White, focusedContentColor = Color.Black,
+            selectedContainerColor = Gold.copy(alpha = 0.85f), selectedContentColor = Color.Black,
+            focusedSelectedContainerColor = Gold, focusedSelectedContentColor = Color.Black,
+        ),
+    ) { Text(label, fontSize = 13.sp, fontWeight = FontWeight.SemiBold) }
+}
+

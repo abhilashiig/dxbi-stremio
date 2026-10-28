@@ -110,7 +110,7 @@ data class StreamInfo(
 }
 
 @Immutable
-data class SubtitleTrack(val url: String, val lang: String, val id: String)
+data class SubtitleTrack(val url: String, val lang: String, val id: String, val addon: String = "", val release: String? = null)
 
 // Cinemeta's image host serves several sizes; posters and backdrops are asked for at what the TV shows
 object Images {

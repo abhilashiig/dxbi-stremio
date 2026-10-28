@@ -1,6 +1,19 @@
 package com.abhilash.matinee.tv.ui
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.lazy.LazyListScope
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.ui.ExperimentalComposeUiApi
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.focusRestorer
+import androidx.tv.material3.ButtonDefaults
+import androidx.tv.material3.ClickableSurfaceDefaults
+import androidx.tv.material3.Icon
+import androidx.tv.material3.Surface
+import com.abhilash.matinee.tv.data.parseIso
+import java.text.SimpleDateFormat
+import java.util.Locale
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -18,7 +31,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -44,8 +56,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Border
 import androidx.tv.material3.Button
-import androidx.tv.material3.Card
-import androidx.tv.material3.CardDefaults
 import androidx.tv.material3.Text
 import coil3.compose.AsyncImage
 import com.abhilash.matinee.tv.data.Library
@@ -91,15 +101,18 @@ private fun Details(meta: MetaDetail, nav: Nav) {
         next?.label?.takeIf { it.isNotEmpty() }?.let { append(" $it") }
     }
     val play = remember { FocusRequester() }
+    var season by rememberSaveable { mutableIntStateOf(next?.season ?: meta.seasons.firstOrNull() ?: 1) }
 
     FullBackdrop(meta.preview.background)
-    CompositionLocalProvider(LocalBringIntoViewSpec provides MinimalScroll) {
+    CompositionLocalProvider(LocalBringIntoViewSpec provides rememberMinimalScroll()) {
     LazyColumn(contentPadding = PaddingValues(top = 56.dp, bottom = 48.dp), modifier = Modifier.fillMaxSize()) {
         item {
             Column(Modifier.padding(horizontal = Edge).width(560.dp)) {
+                Text(if (isSeries) "SERIES" else "FILM", fontSize = 12.sp, fontWeight = FontWeight.Bold, letterSpacing = 4.sp, color = Gold,
+                    modifier = Modifier.padding(bottom = 8.dp))
                 if (meta.preview.logo != null) {
                     AsyncImage(meta.preview.logo, meta.preview.name, contentScale = ContentScale.Fit, alignment = Alignment.CenterStart,
-                        modifier = Modifier.heightIn(max = 96.dp).fillMaxWidth(0.75f))
+                        modifier = Modifier.heightIn(max = 96.dp).widthIn(max = 400.dp))
                 } else {
                     Text(meta.preview.name, fontSize = 34.sp, fontWeight = FontWeight.Bold, color = Color.White)
                 }
@@ -113,9 +126,21 @@ private fun Details(meta: MetaDetail, nav: Nav) {
                 }
                 Spacer(Modifier.height(20.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Button(onClick = { nav.push(Route.Streams(meta.preview, next, resumeMs)) }, modifier = Modifier.focusRequester(play)) { Text(playLabel) }
-                    Button(onClick = { scope.launch { Library.setInLibrary(meta.preview, item?.inLibrary != true) } }) {
-                        Text(if (item?.inLibrary == true) "✓ In My List" else "+ My List")
+                    Button(
+                        onClick = { nav.push(Route.Streams(meta.preview, next, resumeMs)) }, modifier = Modifier.focusRequester(play),
+                        colors = ButtonDefaults.colors(containerColor = Color(0xFFE8E8E8), contentColor = Color.Black, focusedContainerColor = Color.White, focusedContentColor = Color.Black),
+                    ) {
+                        Icon(Icons.Play, null, Modifier.size(20.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text(playLabel, fontWeight = FontWeight.Bold)
+                    }
+                    Button(
+                        onClick = { scope.launch { Library.setInLibrary(meta.preview, item?.inLibrary != true) } },
+                        colors = ButtonDefaults.colors(containerColor = Color(0x66808080), contentColor = Color.White, focusedContainerColor = Color.White, focusedContentColor = Color.Black),
+                    ) {
+                        Icon(if (item?.inLibrary == true) Icons.Check else Icons.Add, null, Modifier.size(20.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text("My List", fontWeight = FontWeight.Bold)
                     }
                 }
                 if (resumeMs > 0 && item != null && item.duration > 0) {
@@ -126,55 +151,82 @@ private fun Details(meta: MetaDetail, nav: Nav) {
                 }
             }
         }
-        if (isSeries && meta.videos.isNotEmpty()) item { Episodes(meta, next, item?.videoId, item?.progress ?: 0f) { v, resume -> nav.push(Route.Streams(meta.preview, v, resume)) } }
+        if (isSeries && meta.videos.isNotEmpty()) {
+            episodes(meta, season, { season = it }, item?.videoId, item?.progress ?: 0f, item?.timeOffset ?: 0) { v, resume ->
+                nav.push(Route.Streams(meta.preview, v, resume))
+            }
+        }
     }
     }
     LaunchedEffect(Unit) { runCatching { play.requestFocus() } }
 }
 
-@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
-@Composable
-private fun Episodes(meta: MetaDetail, next: Video?, watchingId: String?, watchingProgress: Float, open: (Video, Long) -> Unit) {
-    val seasons = meta.seasons
-    var season by rememberSaveable { mutableIntStateOf(next?.season ?: seasons.first()) }
-    val episodes = remember(season) { meta.videos.filter { it.season == season } }
-    val item = Library.items.collectAsState().value.firstOrNull { it.id == meta.preview.id }
+private val airedFormat get() = SimpleDateFormat("d MMM yyyy", Locale.getDefault())
+private val upcomingFormat get() = SimpleDateFormat("EEE, d MMM yyyy", Locale.getDefault())
 
-    Column(Modifier.padding(top = 28.dp)) {
-      CompositionLocalProvider(LocalBringIntoViewSpec provides rememberPivot()) {
-        LazyRow(contentPadding = PaddingValues(horizontal = Edge), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            items(seasons) { s ->
-                Button(onClick = { season = s }) { Text(if (s == 0) "Specials" else "Season $s", fontWeight = if (s == season) FontWeight.Bold else FontWeight.Normal, color = if (s == season) Gold else Color.Unspecified) }
+@OptIn(ExperimentalComposeUiApi::class)
+private fun LazyListScope.episodes(
+    meta: MetaDetail, season: Int, onSeason: (Int) -> Unit, watchingId: String?, watchingProgress: Float, resumeMs: Long, open: (Video, Long) -> Unit,
+) {
+    val now = System.currentTimeMillis()
+    val all = meta.videos.filter { it.season == season }
+    // Unknown air dates count as aired; only a date in the future makes an episode "coming soon"
+    val (upcoming, aired) = all.partition { parseIso(it.released) > now }
+    item("seasons") {
+        Column(Modifier.padding(top = 28.dp)) {
+            Text("Episodes", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Color.White, modifier = Modifier.padding(start = Edge, bottom = 4.dp))
+            LazyRow(
+                contentPadding = PaddingValues(horizontal = Edge, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.focusRestorer(),
+            ) {
+                items(meta.seasons) { s -> FilterPill(if (s == 0) "Specials" else "Season $s", s == season) { onSeason(s) } }
             }
         }
-        Spacer(Modifier.height(16.dp))
-        LazyRow(state = rememberLazyListState(), contentPadding = PaddingValues(horizontal = Edge), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-            items(episodes, key = { it.id }) { v ->
-                val watching = v.id == watchingId
-                Column(Modifier.width(240.dp)) {
-                    Card(
-                        onClick = { open(v, if (watching) item?.timeOffset ?: 0 else 0) },
-                        modifier = Modifier.size(240.dp, 135.dp),
-                        shape = CardDefaults.shape(RoundedCornerShape(6.dp)),
-                        scale = CardDefaults.scale(focusedScale = 1.05f),
-                        border = CardDefaults.border(focusedBorder = Border(BorderStroke(2.dp, Gold), shape = RoundedCornerShape(6.dp))),
-                        colors = CardDefaults.colors(containerColor = Color(0xFF1E1E1E)),
-                    ) {
-                        Box(Modifier.fillMaxSize()) {
-                            v.thumbnail?.let { AsyncImage(it, v.title, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize()) }
-                            if (watching && watchingProgress > 0f) {
-                                Box(Modifier.align(Alignment.BottomStart).fillMaxWidth().height(4.dp).background(Color(0x99000000))) {
-                                    Box(Modifier.fillMaxWidth(watchingProgress).height(4.dp).background(Gold))
-                                }
-                            }
-                        }
+    }
+    items(aired, key = { it.id }) { v ->
+        EpisodeRow(v, null, if (v.id == watchingId) watchingProgress else 0f) { open(v, if (v.id == watchingId) resumeMs else 0) }
+    }
+    if (upcoming.isNotEmpty()) {
+        item("upcoming") {
+            Text("Coming soon", fontSize = 17.sp, fontWeight = FontWeight.Bold, color = Gold, modifier = Modifier.padding(start = Edge, top = 20.dp, bottom = 4.dp))
+        }
+        items(upcoming, key = { it.id }) { v -> EpisodeRow(v, "Airs " + upcomingFormat.format(parseIso(v.released)), 0f, null) }
+    }
+}
+
+// Netflix-style episode line: still with its number, then title, air date and synopsis
+@Composable
+private fun EpisodeRow(v: Video, airs: String?, progress: Float, onClick: (() -> Unit)?) {
+    val number = if (v.season == 0) "Special ${v.episode}" else "${v.episode}"
+    Surface(
+        onClick = { onClick?.invoke() },
+        modifier = Modifier.padding(horizontal = Edge - 12.dp, vertical = 3.dp).width(820.dp),
+        shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(10.dp)),
+        colors = ClickableSurfaceDefaults.colors(containerColor = Color.Transparent, focusedContainerColor = Color(0xE6262626), contentColor = Color.White, focusedContentColor = Color.White),
+        border = ClickableSurfaceDefaults.border(focusedBorder = Border(BorderStroke(2.dp, Gold), shape = RoundedCornerShape(10.dp))),
+        scale = ClickableSurfaceDefaults.scale(focusedScale = 1.02f),
+    ) {
+        Row(Modifier.padding(12.dp).alpha(if (airs != null) 0.6f else 1f), verticalAlignment = Alignment.CenterVertically) {
+            Text(number, fontSize = if (v.season == 0) 14.sp else 28.sp, fontWeight = FontWeight.Black, color = Color(0xFFBDBDBD),
+                modifier = Modifier.width(if (v.season == 0) 84.dp else 44.dp))
+            Box(Modifier.size(208.dp, 117.dp).clip(RoundedCornerShape(6.dp)).background(Color(0xFF1E1E1E))) {
+                Text("E${v.episode}", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Muted, modifier = Modifier.align(Alignment.Center))
+                v.thumbnail?.let { AsyncImage(it, v.title, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize()) }
+                if (progress > 0f) {
+                    Box(Modifier.align(Alignment.BottomStart).fillMaxWidth().height(4.dp).background(Color(0x99000000))) {
+                        Box(Modifier.fillMaxWidth(progress).height(4.dp).background(Gold))
                     }
-                    Spacer(Modifier.height(8.dp))
-                    Text("${v.episode}. ${v.title}", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    v.overview?.let { Text(it, fontSize = 12.sp, color = Muted, maxLines = 2, overflow = TextOverflow.Ellipsis, lineHeight = 16.sp) }
                 }
             }
+            Spacer(Modifier.width(18.dp))
+            Column(Modifier.weight(1f)) {
+                Text(v.title.ifEmpty { "Episode ${v.episode}" }, fontSize = 17.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(
+                    airs ?: v.released?.let { parseIso(it) }?.takeIf { it > 0 }?.let { airedFormat.format(it) } ?: "",
+                    fontSize = 13.sp, color = if (airs != null) Gold else Muted, modifier = Modifier.padding(top = 2.dp, bottom = 6.dp),
+                )
+                v.overview?.let { Text(it, fontSize = 13.sp, color = Color(0xFFCFCFCF), maxLines = 3, overflow = TextOverflow.Ellipsis, lineHeight = 18.sp) }
+            }
         }
-      }
     }
 }

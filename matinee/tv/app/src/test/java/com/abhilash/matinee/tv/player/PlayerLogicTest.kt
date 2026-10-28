@@ -5,6 +5,7 @@ import androidx.media3.common.ColorInfo
 import androidx.media3.common.Format
 import androidx.media3.common.MimeTypes
 import com.abhilash.matinee.tv.data.StreamInfo
+import com.abhilash.matinee.tv.data.SubtitleTrack
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -108,5 +109,16 @@ class PlayerLogicTest {
         // Profile 8 on an HEVC decoder is HDR10 (or HDR10+); Atmos decoded to stereo PCM isn't Atmos any more
         assertEquals(listOf("4K", "HDR10+"), formatBadges(dv, false, ddpAtmos, false, 2, tags, hd10Stick))
         assertEquals(listOf("4K", "HDR10"), formatBadges(hevc, false, null, null, 0, tags, dvTv))
+    }
+
+    @Test fun subtitlesRankLanguageThenMatchingRelease() {
+        val subs = listOf(
+            SubtitleTrack("u1", "por", "1", release = "Show.S01E01.WEB.x264-GRP"),
+            SubtitleTrack("u2", "eng", "2", release = "Show.S01E01.DVDRip.XviD-OLD"),
+            SubtitleTrack("u3", "eng", "3", release = "Show.S01E01.1080p.WEB-DL.DDP5.1.H.264-NTb"),
+            SubtitleTrack("u4", "hin", "4"),
+        )
+        val ranked = rankSubtitles(subs, "en", "hi", "Show.S01E01.1080p.WEB-DL.DDP5.1.H.264-NTb")
+        assertEquals(listOf("u3", "u2", "u4", "u1"), ranked.map { it.url })
     }
 }

@@ -3,6 +3,25 @@
 A native Stremio client for Android TV and Fire TV. None of dx.bi's extras: browse, watch, sync, done
 excellently. Playback quality first, then a smooth Netflix-style UI.
 
+## Status (2026-10-28)
+
+All phases are built; real-TV testing is next.
+
+**Verified on the Android TV emulator:** sign-in screen (live link code and QR), browsing without an account,
+Home (hero, rows, focus restored on Back), title page (seasons, episodes), streams screen (empty case),
+search, My List, settings, playback test clips, player controls and Info panel, device report, FFmpeg
+decoders loaded, and the minified release build. Ranking, audio choice and frame-rate matching are
+unit-tested.
+
+**Needs the real TVs:** HDR10/HDR10+/Dolby Vision output, audio passthrough and the decode fallback,
+refresh-rate switching, smoothness on the Fire TV Stick, and anything that needs a signed-in Stremio
+account (addon streams, library sync, Continue Watching, saving progress), which the emulator run didn't
+have. Styled ASS subtitles also still need a real sample.
+
+**Not built yet:** audio delay (lip-sync) setting, watched-episode marks, next-episode autoplay, Google
+TV global search, and app-specific baseline profiles (the libraries' own profiles are bundled and
+installed by ProfileInstaller).
+
 ## Principles
 
 Quality of experience is never traded away. When goals conflict, this order decides:

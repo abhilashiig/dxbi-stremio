@@ -34,14 +34,20 @@ base64 -i matinee-tv-release.jks | pbcopy   # paste as MATINEE_TV_KEYSTORE_B64; 
 Back the key up somewhere safe. Every update must be signed with the same key, or Android won't install it
 over the old version.
 
-## Device report
+## Testing on a TV
 
-The app currently opens on a device report: decoders (hardware or software, 4K frame rates, HDR and Dolby
-Vision profiles), display modes and HDR types, audio outputs, and which formats can be passed through to
-the TV or soundbar. Scroll with the remote. The same report goes to the log, readable over adb:
+Settings has two tools for this:
+
+- **Playback tests**: public 1080p/4K clips in H.264, HEVC 10-bit, HDR10 (HEVC and AV1) and Dolby Vision
+  profiles 5, 8.1 and 8.4 (Jellyfin's test videos). In the player, **Info** shows the decoder, the display
+  mode, how audio is sent (passthrough or decoded) and dropped frames.
+- **Device report**: decoders (hardware or software, 4K frame rates, HDR and Dolby
+Vision profiles), display modes and HDR types, audio outputs, which formats can be passed through to
+the TV or soundbar, and Matinee's own FFmpeg decoders.
+
+Installing over the network:
 
 ```sh
 adb connect <tv-ip>            # after turning on network/ADB debugging in the TV's developer options
 adb install -r app/build/outputs/apk/debug/app-debug.apk
-adb logcat -s MatineeReport
 ```

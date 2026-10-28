@@ -3,6 +3,28 @@
 A native Stremio client for Android TV and Fire TV. None of dx.bi's extras: browse, watch, sync, done
 excellently. Playback quality first, then a smooth Netflix-style UI.
 
+## Principles
+
+Quality of experience is never traded away. When goals conflict, this order decides:
+
+1. **Correct**: right colours (no DV green/purple), audio in sync, never silent, never a crash.
+2. **Smooth**: no judder, stutter or dropped frames; menus respond instantly.
+3. **Full fidelity**: the highest resolution, HDR and audio format the setup can play.
+4. **Fast**: start-up and time to first frame.
+5. **Light**: memory, battery, APK size.
+
+- No silent downgrades: any fallback (DV → HDR10, Atmos → 7.1) shows in the player's info panel with why.
+- Quality drops only when the setup physically can't do better, never to save effort.
+- A stream that drops frames is a failure, not "high quality": the player watches dropped frames and offers
+  the best version that plays smoothly.
+- Same experience on every device. Low-end speed comes from cheaper techniques (pre-blurred images,
+  images loaded at displayed size), never from removing screens, animations or features.
+- Full-quality details: styled ASS subtitles (libass), lossless audio when the chain allows it, posters at
+  the screen's real resolution.
+- Real content over spinners: the last-known home shows instantly and refreshes behind it.
+- Every phase ends with a pass/fail checklist on both test devices; benchmarks guard start-up and scroll
+  jank. A failing check means the phase isn't done.
+
 ## Decisions
 
 | Area | Decision |

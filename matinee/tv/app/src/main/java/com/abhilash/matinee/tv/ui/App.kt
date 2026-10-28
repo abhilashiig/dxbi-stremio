@@ -61,6 +61,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
@@ -152,7 +153,8 @@ fun MainScreen() {
 
     Box(Modifier.fillMaxSize().background(Color.Black)) {
         // Entering the page (Right from the rail) goes back to whatever had focus there, not what is geometrically nearest
-        Box(Modifier.fillMaxSize().padding(start = RailWidth).focusRequester(content).focusGroup()) {
+        // Clipped: a zooming backdrop must never spill under the rail, where a closing rail could uncover it
+        Box(Modifier.fillMaxSize().padding(start = RailWidth).clipToBounds().focusRequester(content).focusGroup()) {
             key(tab) {
               CompositionLocalProvider(LocalLastFocus provides last) {
                 FadeIn {
@@ -189,7 +191,8 @@ private fun NavRail(tab: Tab, current: FocusRequester, onFocus: (Boolean) -> Uni
     var expanded by remember { mutableStateOf(false) }
     var focusedIndex by remember { mutableIntStateOf(tab.ordinal) }
     val glide = spring<Dp>(dampingRatio = 0.8f, stiffness = Spring.StiffnessMediumLow)
-    val width by animateDpAsState(if (expanded) 280.dp else RailWidth, glide, label = "width")
+    // No overshoot on the width: it must settle exactly at the rail's edge
+    val width by animateDpAsState(if (expanded) 280.dp else RailWidth, spring(dampingRatio = 1f, stiffness = Spring.StiffnessMediumLow), label = "width")
     val scrim by animateFloatAsState(if (expanded) 1f else 0f, tween(260), label = "scrim")
     // The highlight glides to whichever item has focus; the gold bar marks the page you're on
     val highlight by animateDpAsState((ItemHeight + ItemGap) * focusedIndex, glide, label = "highlight")

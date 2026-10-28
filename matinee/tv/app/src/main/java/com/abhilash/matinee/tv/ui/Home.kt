@@ -44,6 +44,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
@@ -166,7 +167,7 @@ fun HomeScreen(type: String? = null) {
 // Full-bleed artwork behind the page: each new backdrop crossfades in and settles with a slow push-out
 @Composable
 private fun Backdrop(url: String?) {
-    Crossfade(url, Modifier.fillMaxSize(), tween(700), label = "backdrop") { u ->
+    Crossfade(url, Modifier.fillMaxSize().clipToBounds(), tween(700), label = "backdrop") { u ->
         if (u != null) {
             val zoom = remember { Animatable(1.05f) }
             LaunchedEffect(Unit) { zoom.animateTo(1f, tween(1600, easing = LinearOutSlowInEasing)) }

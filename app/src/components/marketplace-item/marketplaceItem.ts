@@ -10,6 +10,7 @@ interface ModMetaData {
     preview?: string;
     download: string;
     repo: string;
+    unchecked?: boolean;
 }
 
 export async function getModItemTemplate(
@@ -32,8 +33,8 @@ export async function getModItemTemplate(
         } else {
             // Use the preview image for theme logo
             logoBlock = `
-            <a href="${metaData.preview}" target="_blank" rel="noreferrer" style="cursor: zoom-in;">
-                <img class="logo-WrsGF" src="${metaData.preview}" alt="Theme Preview" loading="lazy">
+            <a href="${escapeHtml(metaData.preview)}" target="_blank" rel="noreferrer" style="cursor: zoom-in;">
+                <img class="logo-WrsGF" src="${escapeHtml(metaData.preview)}" alt="Theme Preview" loading="lazy">
             </a>`;
         }
     } else {
@@ -46,8 +47,8 @@ export async function getModItemTemplate(
         } else {
             // Use the preview image for plugin logo
             logoBlock = `
-            <a href="${metaData.preview}" target="_blank" rel="noreferrer" style="cursor: zoom-in;">
-                <img class="logo-WrsGF" src="${metaData.preview}" alt="Plugin Preview" loading="lazy">
+            <a href="${escapeHtml(metaData.preview)}" target="_blank" rel="noreferrer" style="cursor: zoom-in;">
+                <img class="logo-WrsGF" src="${escapeHtml(metaData.preview)}" alt="Plugin Preview" loading="lazy">
             </a>`;
         }
     }
@@ -63,18 +64,26 @@ export async function getModItemTemplate(
         }
     }
 
-    // Replace metadata placeholders
+    // Values come from remote mod lists, so they're escaped and passed as functions (a plain string would expand "$&")
     const metaKeys = ['name', 'description', 'author', 'version'] as const;
     metaKeys.forEach(key => {
         const regex = new RegExp(`{{\\s*${key}\\s*}}`, 'g');
-        template = template.replace(regex, metaData[key] || '');
+        template = template.replace(regex, () => escapeHtml(metaData[key] || ''));
     });
+
+    const notice = metaData.unchecked ? `<br><b>Not checked by dx.bi.</b> Install at your own risk.` : "";
 
     return template
         .replace(/\{\{\s*type\s*\}\}/g, type)
         .replace(/\{\{\s*actionbtnTitle\s*\}\}/g, installed ? "Uninstall" : "Install")
         .replace("{{ actionbtnClass }}", installed ? "uninstall-button-container-oV4Yo" : "install-button-container-yfcq5")
-        .replace("{{ download }}", metaData.download)
-        .replace("{{ repo }}", metaData.repo)
-        .replace("<!-- theme/plugin preview here -->", logoBlock)
+        .replace("{{ download }}", () => escapeHtml(metaData.download))
+        .replace("{{ repo }}", () => escapeHtml(metaData.repo))
+        .replace("{{ notice }}", notice)
+        .replace("{{ unchecked }}", metaData.unchecked ? "true" : "")
+        .replace("<!-- theme/plugin preview here -->", () => logoBlock)
+}
+
+function escapeHtml(text: string): string {
+    return String(text).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c] as string));
 }

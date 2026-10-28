@@ -13,6 +13,8 @@ node tools/bundle-theme.mjs
 
 `registry.json` is the list behind the app's plugin and theme browser. The app installs a file only
 if it matches the entry's `sha256`, and marks an update as checked only if its hash is in the list.
+Mods from the community list (REVENGE977's) that aren't in here still show, marked "Not checked by
+dx.bi", and install only after the user confirms a warning. Adding a mod here makes it checked.
 Point `download` at a fixed copy (a release asset, or a commit SHA, not a branch), then hash it:
 
 ```bash

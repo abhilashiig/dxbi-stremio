@@ -45,30 +45,49 @@ class ModManager {
         });
     }
 
-    public static async fetchMods(): Promise<{ plugins: unknown[]; themes: unknown[] }> {
-        const response = await fetch(URLS.REGISTRY);
+    private static async fetchList(url: string): Promise<{ plugins: RegistryMetaData[]; themes: RegistryMetaData[] }> {
+        const response = await fetch(url);
+        if (!response.ok) throw new Error(`Failed to load mod list: ${response.status}`);
         return response.json();
     }
 
+    // dx.bi's checked list first, then community mods it doesn't have, marked unchecked.
+    // Their sha256 is dropped so nothing from the community list can pass as checked.
+    public static async fetchMods(): Promise<{ plugins: RegistryMetaData[]; themes: RegistryMetaData[] }> {
+        const [ours, community] = await Promise.all([
+            this.fetchList(URLS.REGISTRY),
+            this.fetchList(URLS.COMMUNITY_REGISTRY).catch(() => ({ plugins: [], themes: [] })),
+        ]);
+        const key = (e: RegistryMetaData) => `${e.name}|${e.author}`.toLowerCase();
+        const known = new Set([...ours.plugins, ...ours.themes].map(key));
+        const unchecked = (list: RegistryMetaData[] = []) =>
+            list.filter(e => e?.name && e.download && !known.has(key(e))).map(e => ({ ...e, sha256: "", unchecked: true }));
+        return {
+            plugins: [...ours.plugins, ...unchecked(community.plugins)],
+            themes: [...ours.themes, ...unchecked(community.themes)],
+        };
+    }
+
     private static async registryEntries(): Promise<RegistryMetaData[]> {
-        const { plugins, themes } = await this.fetchMods();
-        return [...plugins, ...themes] as RegistryMetaData[];
+        const { plugins, themes } = await this.fetchList(URLS.REGISTRY);
+        return [...plugins, ...themes];
     }
 
     private static sha256(data: Buffer | string): string {
         return createHash("sha256").update(data).digest("hex");
     }
 
-    public static async downloadMod(modLink: string, type: "plugin" | "theme"): Promise<string> {
+    // allowUnchecked: the user agreed to install a mod that isn't in dx.bi's list. A listed mod is always hash-checked.
+    public static async downloadMod(modLink: string, type: "plugin" | "theme", allowUnchecked = false): Promise<string> {
         this.logger.info(`Downloading ${type} from: ${modLink}`);
         const entry = (await this.registryEntries()).find(e => e.download === modLink);
-        if (!entry?.sha256) throw new Error("It isn't in dx.bi's mod list.");
+        if (!entry?.sha256 && !allowUnchecked) throw new Error("It isn't in dx.bi's mod list.");
 
         const response = await fetch(modLink);
         if (!response.ok) throw new Error(`Failed to download: ${response.status}`);
 
         const buffer = Buffer.from(await response.arrayBuffer());
-        if (this.sha256(buffer) !== entry.sha256) throw new Error("The download doesn't match the copy in dx.bi's mod list, so it wasn't installed.");
+        if (entry?.sha256 && this.sha256(buffer) !== entry.sha256) throw new Error("The download doesn't match the copy in dx.bi's mod list, so it wasn't installed.");
 
         const saveDir = type === "plugin" ? Properties.pluginsPath : Properties.themesPath;
         if (!existsSync(saveDir)) mkdirSync(saveDir, { recursive: true });

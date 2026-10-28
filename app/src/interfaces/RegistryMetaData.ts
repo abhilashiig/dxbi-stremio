@@ -4,7 +4,10 @@ interface RegistryMetaData {
     version: string,
     repo: string,
     download: string,
-    sha256: string
+    sha256: string,
+    description?: string,
+    preview?: string,
+    unchecked?: boolean
 }
 
 export default RegistryMetaData;

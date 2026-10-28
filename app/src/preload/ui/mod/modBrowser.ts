@@ -1,4 +1,4 @@
-import { ipcRenderer } from "electron";
+import { ipcRenderer, shell } from "electron";
 import ModManager from "../../../core/ModManager";
 import Helpers from "../../../utils/Helpers";
 import { getModsTabTemplate } from "../../../components/marketplace-tab/marketplaceTab";
@@ -64,8 +64,19 @@ export async function browseMods(): Promise<void> {
             if (!link || !type) return;
 
             if (btn.getAttribute("title") === "Install") {
+                const unchecked = btn.getAttribute("data-unchecked") === "true";
+                if (unchecked) {
+                    const name = btn.closest(SELECTORS.ADDON_CONTAINER)?.querySelector(SELECTORS.NAME_CONTAINER)?.textContent || "This mod";
+                    const choice = await ipcRenderer.invoke(
+                        IPC_CHANNELS.SHOW_ALERT, "warning", "Install unchecked mod?",
+                        `${name} isn't in dx.bi's mod list, so it hasn't been checked. Mods run code inside the app and could read your Stremio account.\n\nOnly install it if you trust the author. It's recommended to read the source code first.`,
+                        ["Install anyway", "Cancel", "View Source Code"]
+                    );
+                    if (choice === 2) shell.openExternal(link);
+                    if (choice !== 0) return;
+                }
                 try {
-                    await ModManager.downloadMod(link, type);
+                    await ModManager.downloadMod(link, type, unchecked);
                 } catch (err) {
                     ipcRenderer.invoke(IPC_CHANNELS.SHOW_ALERT, "error", "Install failed", (err as Error).message, ["OK"]);
                     return;

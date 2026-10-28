@@ -279,9 +279,9 @@
       "author": "dx.bi",
       "description": "The full dx.bi experience in one plugin, theme included: rotating billboard, Netflix-style hover previews with IMDb/Kitsu/AniList ratings, critic reviews and Rotten Tomatoes/Metacritic scores on title pages, Skip Intro & Next Episode (TheIntroDB + AniSkip), addon order & backup, subtitle styles, picture-in-picture, open in mpv/VLC, seek-bar thumbnails, black-bar removal and zoom, Dialogue boost and Night mode, one-click subtitle sync and second subtitles, Library sorting by year/rating/genre, stream sort and filter bar, end-to-end encrypted watch parties, optional Anime4K/sharpen picture enhancement, intro and UI sounds, and full keyboard browsing with the arrow keys. All configurable in Settings.",
       "version": "2.17.0",
-      "repo": "https://github.com/notdxbi/dxbi-stremio",
-      "preview": "https://raw.githubusercontent.com/notdxbi/dxbi-stremio/main/screenshots/home.jpg",
-      "download": "https://raw.githubusercontent.com/notdxbi/dxbi-stremio/v2.17.0/dxbi.plugin.js",
+      "repo": "https://github.com/abhilashiig/dxbi-stremio",
+      "preview": "https://raw.githubusercontent.com/abhilashiig/dxbi-stremio/main/screenshots/home.jpg",
+      "download": "https://raw.githubusercontent.com/abhilashiig/dxbi-stremio/0885b8a95414ff447fc1d9d2eb77c286dbdb47bd/dxbi.plugin.js",
       "sha256": "89936208f0c4cfbfb3d0b62d61fb80a39c73069cb470fe2727cdd0ba2cf41eea"
     }
   ],

@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # dx.bi installer for Stremio Enhanced (Linux / macOS)
-#   curl -fsSL https://github.com/notdxbi/dxbi-stremio/releases/latest/download/install.sh | bash
+#   curl -fsSL https://github.com/abhilashiig/dxbi-stremio/releases/latest/download/install.sh | bash
 set -euo pipefail
 
-BASE_URL="${DXBI_BASE_URL:-https://github.com/notdxbi/dxbi-stremio/releases/latest/download}"
+BASE_URL="${DXBI_BASE_URL:-https://github.com/abhilashiig/dxbi-stremio/releases/latest/download}"
 
 case "$(uname -s)" in
   Darwin) DATA="$HOME/Library/Application Support/stremio-enhanced" ;;

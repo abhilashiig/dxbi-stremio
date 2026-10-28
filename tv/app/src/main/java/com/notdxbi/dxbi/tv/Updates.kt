@@ -23,8 +23,8 @@ import kotlin.concurrent.thread
  */
 object Updates {
     // The plugin from the latest release, not the main branch: unreleased work never reaches TVs
-    private const val PLUGIN_URL = "https://github.com/notdxbi/dxbi-stremio/releases/latest/download/dxbi.plugin.js"
-    private const val RELEASES_URL = "https://api.github.com/repos/notdxbi/dxbi-stremio/releases/latest"
+    private const val PLUGIN_URL = "https://github.com/abhilashiig/dxbi-stremio/releases/latest/download/dxbi.plugin.js"
+    private const val RELEASES_URL = "https://api.github.com/repos/abhilashiig/dxbi-stremio/releases/latest"
     private const val APK_ASSET = "dxbi-tv.apk"
     private const val UPDATED_PLUGIN = "dxbi.plugin.js"
 

@@ -115,11 +115,11 @@ export const FILE_EXTENSIONS = {
 export const URLS = {
     STREMIO_WEB: 'https://web.stremio.com/',
     STREMIO_WEB_ADD_ADDON: 'https://web.stremio.com/#/addons?addon=',
-    REGISTRY: 'https://raw.githubusercontent.com/notdxbi/dxbi-stremio/main/registry.json',
+    REGISTRY: 'https://raw.githubusercontent.com/abhilashiig/dxbi-stremio/main/registry.json',
     COMMUNITY_REGISTRY: 'https://raw.githubusercontent.com/REVENGE977/stremio-enhanced-registry/refs/heads/main/registry.json',
-    VERSION_CHECK: 'https://github.com/notdxbi/dxbi-stremio/raw/main/app/version',
-    RELEASES_API: 'https://api.github.com/repos/notdxbi/dxbi-stremio/releases/latest',
-    RELEASES_PAGE: 'https://github.com/notdxbi/dxbi-stremio/releases/latest',
+    VERSION_CHECK: 'https://github.com/abhilashiig/dxbi-stremio/raw/main/app/version',
+    RELEASES_API: 'https://api.github.com/repos/abhilashiig/dxbi-stremio/releases/latest',
+    RELEASES_PAGE: 'https://github.com/abhilashiig/dxbi-stremio/releases/latest',
     STREMIO_SERVICE_GITHUB_API: "https://api.github.com/repos/Stremio/stremio-service/releases/latest",
     STREMIO_SERVICE_DOWNLOAD_PAGE: "https://www.stremio.com/download-service"
 } as const;
@@ -151,7 +151,7 @@ export const MACOS_FFPROBE_URLS = {
 
 // Discord Rich Presence: dx.bi's own Discord application, so it reads "Watching dx.bi". Images are
 // web addresses (Discord fetches them), so nothing has to be uploaded to the Discord app.
-const PRESENCE_IMAGES = 'https://raw.githubusercontent.com/notdxbi/dxbi-stremio/main/app/images/presence';
+const PRESENCE_IMAGES = 'https://raw.githubusercontent.com/abhilashiig/dxbi-stremio/main/app/images/presence';
 export const DISCORD = {
     CLIENT_ID: '1563995396290777188',
     RECONNECT_INTERVAL: 10000,
@@ -159,7 +159,7 @@ export const DISCORD = {
     PLAY_IMAGE: `${PRESENCE_IMAGES}/play.png`,
     PAUSE_IMAGE: `${PRESENCE_IMAGES}/pause.png`,
     BROWSE_IMAGE: `${PRESENCE_IMAGES}/browse.png`,
-    BUTTONS: [{ label: 'Get dx.bi', url: 'https://github.com/notdxbi/dxbi-stremio' }],
+    BUTTONS: [{ label: 'Get dx.bi', url: 'https://github.com/abhilashiig/dxbi-stremio' }],
 } as const;
 
 // Timeouts

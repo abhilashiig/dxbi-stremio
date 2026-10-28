@@ -46,10 +46,10 @@ jobs:
       - name: Published installer (Windows PowerShell 5.1)
         if: runner.os == 'Windows'
         shell: powershell
-        run: irm https://github.com/notdxbi/dxbi-stremio/releases/latest/download/install.ps1 | iex
+        run: irm https://github.com/abhilashiig/dxbi-stremio/releases/latest/download/install.ps1 | iex
       - name: Published installer (bash)
         if: runner.os != 'Windows'
-        run: curl -fsSL https://github.com/notdxbi/dxbi-stremio/releases/latest/download/install.sh | bash
+        run: curl -fsSL https://github.com/abhilashiig/dxbi-stremio/releases/latest/download/install.sh | bash
 
       # Then this commit's installers and plugin, served locally
       - name: Serve this commit

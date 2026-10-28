@@ -1,7 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<!-- Placeholder until the Matinee logo exists -->
-<vector xmlns:android="http://schemas.android.com/apk/res/android"
-    android:width="48dp" android:height="48dp" android:viewportWidth="24" android:viewportHeight="24">
-    <path android:fillColor="#000000" android:pathData="M0,0h24v24h-24z" />
-    <path android:fillColor="#E50914" android:pathData="M4,20V4h3l5,7 5,-7h3v16h-3V9l-5,7 -5,-7v11z" />
-</vector>

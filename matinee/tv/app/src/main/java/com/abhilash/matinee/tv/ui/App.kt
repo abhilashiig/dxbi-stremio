@@ -2,6 +2,17 @@ package com.abhilash.matinee.tv.ui
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.foundation.layout.offset
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.unit.Dp
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.layout.Arrangement
@@ -16,7 +27,6 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.focusRestorer
 import androidx.compose.ui.focus.onFocusChanged
-import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.onPreviewKeyEvent
@@ -122,11 +132,13 @@ fun MatineeApp(deepLink: StateFlow<Route?>) {
 }
 
 private enum class Tab(val label: String, val icon: ImageVector) {
-    Search("Search", Icons.Search), Home("Home", Icons.Home), Series("Series", Icons.Tv), Movies("Movies", Icons.Movie),
-    MyList("My List", Icons.Add), Settings("Settings", Icons.Settings),
+    Search("Search", NavIcons.Search), Home("Home", NavIcons.Home), Series("Series", NavIcons.Series), Movies("Movies", NavIcons.Movies),
+    MyList("My List", NavIcons.MyList), Settings("Settings", NavIcons.Settings),
 }
 
-val RailWidth = 76.dp
+val RailWidth = 64.dp
+private val ItemHeight = 40.dp
+private val ItemGap = 8.dp
 
 @Composable
 fun MainScreen() {
@@ -175,45 +187,66 @@ fun MainScreen() {
 @Composable
 private fun NavRail(tab: Tab, current: FocusRequester, onFocus: (Boolean) -> Unit, onRight: () -> Unit, onSelect: (Tab) -> Unit) {
     var expanded by remember { mutableStateOf(false) }
-    Box(
-        Modifier.fillMaxHeight().width(if (expanded) 300.dp else RailWidth)
-            .background(if (expanded) Brush.horizontalGradient(0f to Color.Black, 0.6f to Color(0xF2000000), 1f to Color.Transparent) else SolidColor(Color.Black))
-    ) {
-        AnimatedVisibility(expanded, enter = fadeIn(), exit = fadeOut()) {
-            Image(painterResource(R.drawable.wordmark), "Matinee", Modifier.padding(start = 26.dp, top = 30.dp).width(110.dp))
+    var focusedIndex by remember { mutableIntStateOf(tab.ordinal) }
+    val glide = spring<Dp>(dampingRatio = 0.8f, stiffness = Spring.StiffnessMediumLow)
+    val width by animateDpAsState(if (expanded) 280.dp else RailWidth, glide, label = "width")
+    val scrim by animateFloatAsState(if (expanded) 1f else 0f, tween(260), label = "scrim")
+    // The highlight glides to whichever item has focus; the gold bar marks the page you're on
+    val highlight by animateDpAsState((ItemHeight + ItemGap) * focusedIndex, glide, label = "highlight")
+    val marker by animateDpAsState((ItemHeight + ItemGap) * tab.ordinal, glide, label = "marker")
+
+    Box(Modifier.fillMaxHeight().width(width)) {
+        Box(Modifier.fillMaxHeight().width(RailWidth).background(Color.Black))
+        Box(Modifier.fillMaxSize().graphicsLayer { alpha = scrim }
+            .background(Brush.horizontalGradient(0f to Color.Black, 0.55f to Color(0xF0000000), 1f to Color.Transparent)))
+        AnimatedVisibility(expanded, enter = fadeIn(tween(300, 80)) + slideInHorizontally { -it / 6 }, exit = fadeOut(tween(120))) {
+            Image(painterResource(R.drawable.wordmark), "Matinee", Modifier.padding(start = 22.dp, top = 30.dp).width(100.dp))
         }
-        Column(
-            Modifier.fillMaxHeight().padding(start = 14.dp)
-                .onFocusChanged { expanded = it.hasFocus; onFocus(it.hasFocus) }
-                .onPreviewKeyEvent { e ->
-                    if (e.type == KeyEventType.KeyDown && e.nativeKeyEvent.keyCode == android.view.KeyEvent.KEYCODE_DPAD_RIGHT) { onRight(); true } else false
-                }
-                .focusRestorer(current)
-                .focusGroup(),
-            verticalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterVertically),
-        ) {
-            Tab.entries.forEach { t ->
-                Surface(
-                    onClick = { onSelect(t) },
-                    modifier = if (t == tab) Modifier.focusRequester(current) else Modifier,
-                    shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(50)),
-                    colors = ClickableSurfaceDefaults.colors(
-                        containerColor = Color.Transparent, contentColor = if (t == tab) Color.White else Color(0xFF9A9A9A),
-                        focusedContainerColor = Color.White, focusedContentColor = Color.Black,
-                    ),
-                    scale = ClickableSurfaceDefaults.scale(focusedScale = 1.04f),
-                ) {
-                    Row(Modifier.padding(horizontal = 12.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Icon(t.icon, t.label, Modifier.size(24.dp))
-                            Box(Modifier.padding(top = 3.dp).size(16.dp, 2.dp).background(if (t == tab) Gold else Color.Transparent))
-                        }
-                        if (expanded) {
-                            Text(t.label, fontSize = 17.sp, fontWeight = if (t == tab) FontWeight.Bold else FontWeight.Medium,
-                                modifier = Modifier.padding(start = 16.dp, end = 10.dp))
-                        }
+        Box(Modifier.align(Alignment.CenterStart)) {
+            Box(Modifier.offset(x = 3.dp, y = marker + 11.dp).size(3.dp, 18.dp).background(Gold, RoundedCornerShape(2.dp)))
+            Box(
+                Modifier.offset(x = 12.dp, y = highlight).height(ItemHeight).width(ItemHeight + (136.dp - ItemHeight) * scrim)
+                    .graphicsLayer { alpha = scrim }.background(Color(0x29FFFFFF), RoundedCornerShape(12.dp))
+            )
+            Column(
+                Modifier.padding(start = 12.dp)
+                    .onFocusChanged { expanded = it.hasFocus; onFocus(it.hasFocus) }
+                    .onPreviewKeyEvent { e ->
+                        if (e.type == KeyEventType.KeyDown && e.nativeKeyEvent.keyCode == android.view.KeyEvent.KEYCODE_DPAD_RIGHT) { onRight(); true } else false
                     }
+                    .focusRestorer(current)
+                    .focusGroup(),
+                verticalArrangement = Arrangement.spacedBy(ItemGap),
+            ) {
+                Tab.entries.forEach { t ->
+                    RailItem(t, selected = t == tab, expanded = expanded,
+                        modifier = (if (t == tab) Modifier.focusRequester(current) else Modifier)
+                            .onFocusChanged { if (it.isFocused) focusedIndex = t.ordinal }) { onSelect(t) }
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun RailItem(tab: Tab, selected: Boolean, expanded: Boolean, modifier: Modifier, onClick: () -> Unit) {
+    var focused by remember { mutableStateOf(false) }
+    val scale by animateFloatAsState(if (focused) 1.15f else 1f, spring(dampingRatio = 0.6f, stiffness = Spring.StiffnessMedium), label = "scale")
+    val color by animateColorAsState(
+        when { focused -> Color.White; selected -> Color(0xFFEDEDED); else -> Color(0xFF8A8A8A) }, tween(180), label = "color",
+    )
+    Surface(
+        onClick = onClick,
+        modifier = modifier.height(ItemHeight).onFocusChanged { focused = it.isFocused },
+        shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(12.dp)),
+        colors = ClickableSurfaceDefaults.colors(containerColor = Color.Transparent, focusedContainerColor = Color.Transparent),
+        scale = ClickableSurfaceDefaults.scale(focusedScale = 1f),
+    ) {
+        Row(Modifier.fillMaxHeight().padding(horizontal = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+            Icon(tab.icon, tab.label, Modifier.size(20.dp).graphicsLayer { scaleX = scale; scaleY = scale }, tint = color)
+            AnimatedVisibility(expanded, enter = fadeIn(tween(220, 60)) + slideInHorizontally { -it / 3 }, exit = fadeOut(tween(90))) {
+                Text(tab.label, fontSize = 15.sp, color = color, fontWeight = if (selected || focused) FontWeight.SemiBold else FontWeight.Normal,
+                    modifier = Modifier.padding(start = 14.dp, end = 8.dp))
             }
         }
     }

@@ -2,6 +2,8 @@ package com.abhilash.matinee.tv.ui
 
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.vector.addPathNodes
 import androidx.compose.ui.unit.dp
@@ -15,13 +17,33 @@ object Icons {
     val Info = icon("M12,2C6.48,2 2,6.48 2,12s4.48,10 10,10 10,-4.48 10,-10S17.52,2 12,2zm1,15h-2v-6h2v6zm0,-8h-2V7h2v2z")
     val Check = icon("M9,16.17L4.83,12l-1.42,1.41L9,19 21,7l-1.41,-1.41z")
     val Bolt = icon("M7,2v11h3v9l7,-12h-4l4,-8z")
-    val Search = icon("M15.5,14h-0.79l-0.28,-0.27C15.41,12.59 16,11.11 16,9.5 16,5.91 13.09,3 9.5,3S3,5.91 3,9.5 5.91,16 9.5,16c1.61,0 3.09,-0.59 4.23,-1.57l0.27,0.28v0.79l5,4.99L20.49,19l-4.99,-5zM9.5,14C7.01,14 5,11.99 5,9.5S7.01,5 9.5,5 14,7.01 14,9.5 11.99,14 9.5,14z")
-    val Home = icon("M10,20v-6h4v6h5v-8h3L12,3 2,12h3v8z")
-    val Tv = icon("M21,3H3c-1.1,0 -2,0.9 -2,2v12c0,1.1 0.9,2 2,2h5v2h8v-2h5c1.1,0 1.99,-0.9 1.99,-2L23,5c0,-1.1 -0.9,-2 -2,-2zM21,17H3V5h18v12z")
-    val Movie = icon("M18,4l2,4h-3l-2,-4h-2l2,4h-3l-2,-4H8l2,4H7L5,4H4c-1.1,0 -1.99,0.9 -1.99,2L2,18c0,1.1 0.9,2 2,2h16c1.1,0 2,-0.9 2,-2V4h-4z")
     val Add = icon("M19,13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z")
-    val Settings = icon("M19.14,12.94c0.04,-0.3 0.06,-0.61 0.06,-0.94c0,-0.32 -0.02,-0.64 -0.07,-0.94l2.03,-1.58c0.18,-0.14 0.23,-0.41 0.12,-0.61l-1.92,-3.32c-0.12,-0.22 -0.37,-0.29 -0.59,-0.22l-2.39,0.96c-0.5,-0.38 -1.03,-0.7 -1.62,-0.94L14.4,2.81c-0.04,-0.24 -0.24,-0.41 -0.48,-0.41h-3.84c-0.24,0 -0.43,0.17 -0.47,0.41L9.25,5.35C8.66,5.59 8.12,5.92 7.63,6.29L5.24,5.33c-0.22,-0.08 -0.47,0 -0.59,0.22L2.74,8.87C2.62,9.08 2.66,9.34 2.86,9.48l2.03,1.58C4.84,11.36 4.8,11.69 4.8,12s0.02,0.64 0.07,0.94l-2.03,1.58c-0.18,0.14 -0.23,0.41 -0.12,0.61l1.92,3.32c0.12,0.22 0.37,0.29 0.59,0.22l2.39,-0.96c0.5,0.38 1.03,0.7 1.62,0.94l0.36,2.54c0.05,0.24 0.24,0.41 0.48,0.41h3.84c0.24,0 0.44,-0.17 0.47,-0.41l0.36,-2.54c0.59,-0.24 1.13,-0.56 1.62,-0.94l2.39,0.96c0.22,0.08 0.47,0 0.59,-0.22l1.92,-3.32c0.12,-0.22 0.07,-0.47 -0.12,-0.61L19.14,12.94zM12,15.6c-1.98,0 -3.6,-1.62 -3.6,-3.6s1.62,-3.6 3.6,-3.6s3.6,1.62 3.6,3.6S13.98,15.6 12,15.6z")
 }
+
+// Navigation: Lucide outline icons (ISC licence), drawn as strokes so they stay crisp at any size and weight
+object NavIcons {
+    val Search = outline("M3,11a8,8 0 1,0 16,0a8,8 0 1,0 -16,0", "M21,21l-4.34,-4.34")
+    val Home = outline(
+        "M15,21v-8a1,1 0 0,0 -1,-1h-4a1,1 0 0,0 -1,1v8",
+        "M3,10a2,2 0 0,1 0.709,-1.528l7,-5.999a2,2 0 0,1 2.582,0l7,5.999A2,2 0 0,1 21,10v9a2,2 0 0,1 -2,2H5a2,2 0 0,1 -2,-2z",
+    )
+    val Series = outline("M4,7h16a2,2 0 0,1 2,2v11a2,2 0 0,1 -2,2H4a2,2 0 0,1 -2,-2V9a2,2 0 0,1 2,-2z", "M17,2L12,7L7,2")
+    val Movies = outline(
+        "M20.2,6L3,11l-0.9,-2.4c-0.3,-1.1 0.3,-2.2 1.3,-2.5l13.5,-4c1.1,-0.3 2.2,0.3 2.5,1.3z",
+        "M6.2,5.3l3.1,3.9", "M12.4,3.4l3.1,4", "M3,11h18v8a2,2 0 0,1 -2,2H5a2,2 0 0,1 -2,-2z",
+    )
+    val MyList = outline("M19,21l-7,-4l-7,4V5a2,2 0 0,1 2,-2h10a2,2 0 0,1 2,2v16z")
+    val Settings = outline("M20,7h-9", "M14,17H5", "M14,17a3,3 0 1,0 6,0a3,3 0 1,0 -6,0", "M4,7a3,3 0 1,0 6,0a3,3 0 1,0 -6,0")
+}
+
+private fun outline(vararg paths: String) = ImageVector.Builder(defaultWidth = 24.dp, defaultHeight = 24.dp, viewportWidth = 24f, viewportHeight = 24f)
+    .apply {
+        paths.forEach {
+            addPath(addPathNodes(it), fill = null, stroke = SolidColor(Color.White), strokeLineWidth = 2f,
+                strokeLineCap = StrokeCap.Round, strokeLineJoin = StrokeJoin.Round)
+        }
+    }
+    .build()
 
 private fun icon(path: String) = ImageVector.Builder(defaultWidth = 24.dp, defaultHeight = 24.dp, viewportWidth = 24f, viewportHeight = 24f)
     .addPath(addPathNodes(path), fill = SolidColor(Color.White))

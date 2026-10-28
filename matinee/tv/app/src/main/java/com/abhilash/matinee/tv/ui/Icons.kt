@@ -36,6 +36,14 @@ object NavIcons {
     val Settings = outline("M20,7h-9", "M14,17H5", "M14,17a3,3 0 1,0 6,0a3,3 0 1,0 -6,0", "M4,7a3,3 0 1,0 6,0a3,3 0 1,0 -6,0")
 }
 
+// The Matinee "M" from brand/source/mark_transparent.svg, in its own gold
+val MatineeMark = ImageVector.Builder(defaultWidth = 24.dp, defaultHeight = 24.dp, viewportWidth = 100f, viewportHeight = 100f)
+    .addPath(
+        addPathNodes("M15,85L15,42A17.5,17.5 0 0,1 50,42L50,85M50,42A17.5,17.5 0 0,1 85,42L85,85"),
+        fill = null, stroke = SolidColor(Color(0xFFF2B441)), strokeLineWidth = 13f, strokeLineJoin = StrokeJoin.Round,
+    )
+    .build()
+
 private fun outline(vararg paths: String) = ImageVector.Builder(defaultWidth = 24.dp, defaultHeight = 24.dp, viewportWidth = 24f, viewportHeight = 24f)
     .apply {
         paths.forEach {

@@ -199,8 +199,14 @@ private fun NavRail(tab: Tab, current: FocusRequester, onFocus: (Boolean) -> Uni
         Box(Modifier.fillMaxHeight().width(RailWidth).background(Color.Black))
         Box(Modifier.fillMaxSize().graphicsLayer { alpha = scrim }
             .background(Brush.horizontalGradient(0f to Color.Black, 0.55f to Color(0xF0000000), 1f to Color.Transparent)))
+        // The brand stays on screen: the "M" mark on the slim rail, the full wordmark when it opens
+        AnimatedVisibility(!expanded, enter = fadeIn(tween(250, 120)), exit = fadeOut(tween(120))) {
+            Box(Modifier.width(RailWidth).padding(top = 30.dp), contentAlignment = Alignment.TopCenter) {
+                Image(MatineeMark, "Matinee", Modifier.size(30.dp))
+            }
+        }
         AnimatedVisibility(expanded, enter = fadeIn(tween(300, 80)) + slideInHorizontally { -it / 6 }, exit = fadeOut(tween(120))) {
-            Image(painterResource(R.drawable.wordmark), "Matinee", Modifier.padding(start = 22.dp, top = 30.dp).width(100.dp))
+            Image(painterResource(R.drawable.wordmark), "Matinee", Modifier.padding(start = 22.dp, top = 36.dp).width(100.dp))
         }
         Box(Modifier.align(Alignment.CenterStart)) {
             Box(Modifier.offset(x = 3.dp, y = marker + 11.dp).size(3.dp, 18.dp).background(Gold, RoundedCornerShape(2.dp)))

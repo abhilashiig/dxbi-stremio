@@ -202,6 +202,9 @@ fun SettingsScreen() {
             Item("Audio decoding fixes", "Reset", "Forget every \"Decode audio on this device\" choice, so passthrough is tried again everywhere") {
                 Settings.clearForcePcm()
             },
+            Item("Start-up intro", if (Settings.intro) "On" else "Off", "The Matinee ident and sound when the app opens") {
+                Settings.intro = !Settings.intro
+            },
             Item("Playback tests", "Open", "Dolby Vision, HDR10 and 4K test clips to check this TV") { nav.push(Route.Tests) },
             Item("Device report", "Open", "What this TV can decode, display and pass through") { nav.push(Route.Report) },
             Item("About", "Matinee ${BuildConfig.VERSION_NAME}") {},

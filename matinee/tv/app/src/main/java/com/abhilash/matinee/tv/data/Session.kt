@@ -125,6 +125,10 @@ object Settings {
         get() = prefs.getBoolean("subtitleBackground", false)
         set(v) = prefs.edit().putBoolean("subtitleBackground", v).apply()
 
+    var intro: Boolean
+        get() = prefs.getBoolean("intro", true)
+        set(v) = prefs.edit().putBoolean("intro", v).apply()
+
     var instantOnly: Boolean
         get() = prefs.getBoolean("instantOnly", true)
         set(v) = prefs.edit().putBoolean("instantOnly", v).apply()

@@ -1,12 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Android 12+ shows its own splash: keep it plain black so the Matinee ident is the only logo -->
+    <!-- Android 12+ shows its own launch screen: the Matinee M on black, which the intro then takes over -->
     <style name="Theme.Matinee" parent="@android:style/Theme.Material.NoActionBar">
         <item name="android:windowBackground">@color/matinee_black</item>
         <item name="android:colorBackground">@color/matinee_black</item>
         <item name="android:navigationBarColor">@color/matinee_black</item>
         <item name="android:statusBarColor">@color/matinee_black</item>
         <item name="android:windowSplashScreenBackground">@color/matinee_black</item>
-        <item name="android:windowSplashScreenAnimatedIcon">@android:color/transparent</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@drawable/matinee_mark</item>
     </style>
 </resources>

@@ -2,7 +2,12 @@ package com.abhilash.matinee.tv.data
 
 import android.content.Context
 import androidx.compose.runtime.Immutable
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -63,10 +68,24 @@ object Library {
     private val _items = MutableStateFlow<List<LibItem>>(emptyList())
     val items: StateFlow<List<LibItem>> = _items
 
+    // The saved copy loads in the background so start-up isn't held up; every change waits for it first
+    private val loaded = CompletableDeferred<Unit>()
+
     fun init(context: Context) {
         file = File(context.filesDir, "library.json")
-        runCatching { JSONArray(file.readText()).mapObjects { it } }.getOrNull()?.forEach { j -> j.str("_id")?.let { raw[it] = j } }
-        publish()
+        CoroutineScope(Dispatchers.IO).launch {
+            runCatching { JSONArray(file.readText()).mapObjects { it } }.getOrNull()?.forEach { j -> j.str("_id")?.let { raw[it] = j } }
+            publish()
+            loaded.complete(Unit)
+        }
+    }
+
+    suspend fun awaitLoaded() = loaded.await()
+
+    // Changes, file writes and re-parsing happen off the main thread, one at a time
+    private suspend fun <T> locked(block: () -> T): T {
+        loaded.await()
+        return withContext(Dispatchers.IO) { lock.withLock { block() } }
     }
 
     fun item(id: String): LibItem? = _items.value.firstOrNull { it.id == id }
@@ -76,7 +95,7 @@ object Library {
     suspend fun refresh() {
         val key = Session.authKey ?: return
         val remote = Stremio.library(key)
-        lock.withLock {
+        locked {
             raw.clear()
             remote.forEach { j -> j.str("_id")?.let { raw[it] = j } }
             persist()
@@ -84,7 +103,7 @@ object Library {
         }
     }
 
-    suspend fun clear() = lock.withLock {
+    suspend fun clear() = locked {
         raw.clear()
         file.delete()
         publish()
@@ -111,7 +130,7 @@ object Library {
 
     private suspend fun update(meta: MetaPreview, change: (JSONObject, String) -> Unit) {
         val now = isoNow()
-        val item = lock.withLock {
+        val item = locked {
             val item = raw[meta.id]?.let { JSONObject(it.toString()) } ?: newItem(meta, now)
             change(item, now)
             item.put("_mtime", now)

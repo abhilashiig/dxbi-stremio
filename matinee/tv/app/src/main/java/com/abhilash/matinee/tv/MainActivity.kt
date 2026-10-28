@@ -9,6 +9,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import com.abhilash.matinee.tv.data.Settings
 import com.abhilash.matinee.tv.ui.Intro
+import com.abhilash.matinee.tv.ui.IntroSound
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import com.abhilash.matinee.tv.data.Library
@@ -29,14 +30,17 @@ class MainActivity : ComponentActivity() {
         deepLink.value = route(intent)
         // The ident plays on a fresh start, over the app, which loads underneath it meanwhile
         intro = savedInstanceState == null && Settings.intro
+        val sound = if (intro) IntroSound(this) else null
         setContent {
             MatineeTheme {
                 Box {
                     MatineeApp(deepLink)
-                    if (intro) Intro { intro = false }
+                    if (intro && sound != null) Intro(sound) { intro = false }
                 }
             }
         }
+        // The launch screen's M lives in the window background (before Android 12); past launch, plain black
+        window.setBackgroundDrawableResource(R.color.matinee_black)
     }
 
     // Any key skips the ident, and never reaches the app behind it

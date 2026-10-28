@@ -2,6 +2,9 @@ package com.abhilash.matinee.tv.data
 
 import android.content.Context
 import androidx.compose.runtime.Immutable
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
@@ -10,6 +13,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.channelFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import org.json.JSONArray
 import org.json.JSONObject
@@ -40,15 +44,25 @@ object Repo {
     private val metas = ConcurrentHashMap<String, MetaDetail>()
 
     // Last-known addons and home rows load from disk, so the home screen shows instantly and refreshes behind
+    // Cached addons and Home rows load in the background so start-up isn't held up; anything that uses them waits
+    private val loaded = CompletableDeferred<Unit>()
+
     fun init(context: Context) {
         dir = context.filesDir
-        runCatching { JSONArray(File(dir, "addons.json").readText()).mapObjects { Addon.from(it) } }.getOrNull()?.let { _addons.value = it }
-        runCatching {
-            JSONArray(File(dir, "home.json").readText()).mapObjects { r ->
-                HomeRow(r.getString("key"), r.getString("title"), r.optJSONArray("metas").mapObjects { MetaPreview.from(it, r.optString("type")) })
-            }
-        }.getOrNull()?.let { _home.value = it }
+        CoroutineScope(Dispatchers.IO).launch {
+            runCatching { JSONArray(File(dir, "addons.json").readText()).mapObjects { Addon.from(it) } }.getOrNull()?.let { _addons.value = it }
+            runCatching {
+                JSONArray(File(dir, "home.json").readText()).mapObjects { r ->
+                    HomeRow(r.getString("key"), r.getString("title"), r.optJSONArray("metas").mapObjects { MetaPreview.from(it, r.optString("type")) })
+                }
+            }.getOrNull()?.let { _home.value = it }
+            loaded.complete(Unit)
+        }
     }
+
+    suspend fun awaitLoaded() = loaded.await()
+
+    private suspend fun addons(): List<Addon> { loaded.await(); return _addons.value }
 
     fun clear() {
         _addons.value = emptyList()
@@ -59,16 +73,18 @@ object Repo {
         File(dir, "home.json").delete()
     }
 
-    suspend fun refreshAddons() {
+    suspend fun refreshAddons() = withContext(Dispatchers.IO) {
+        loaded.await()
         val key = Session.authKey
         val list = if (key != null) Stremio.addons(key) else listOf(Addon(CINEMETA, Http.get(CINEMETA)))
-        if (list.isEmpty()) return
+        if (list.isEmpty()) return@withContext
         _addons.value = list
         runCatching { File(dir, "addons.json").writeText(JSONArray(list.map { it.toJson() }).toString()) }
     }
 
-    suspend fun refreshHome() = coroutineScope {
-        val rows = _addons.value.flatMap { a -> a.catalogs.filter { it.forHome } }
+    // Parsing and saving dozens of catalogs is heavy: kept off the main thread so the UI never stalls on it
+    suspend fun refreshHome() = withContext(Dispatchers.IO) {
+        val rows = addons().flatMap { a -> a.catalogs.filter { it.forHome } }
         val fetched = rows.map { c -> async { runCatching { c to catalogJson(c, fresh = true) }.getOrNull() } }.awaitAll().filterNotNull()
         _home.value = fetched.mapNotNull { (c, metas) ->
             HomeRow(c.key, c.title, metas.mapObjects { MetaPreview.from(it, c.type) }).takeIf { it.items.isNotEmpty() }
@@ -88,7 +104,7 @@ object Repo {
 
     suspend fun meta(type: String, id: String): MetaDetail? {
         metas["$type/$id"]?.let { return it }
-        for (addon in _addons.value.filter { it.supports("meta", type, id) }) {
+        for (addon in addons().filter { it.supports("meta", type, id) }) {
             val meta = runCatching { Http.get(addon.url("meta", type, id)).optJSONObject("meta")?.let { MetaDetail.from(it) } }.getOrNull()
             if (meta != null) return meta.also { metas["$type/$id"] = it }
         }
@@ -97,7 +113,7 @@ object Repo {
 
     // Each addon's streams arrive as soon as that addon answers
     fun streams(type: String, videoId: String): Flow<AddonStreams> = channelFlow {
-        _addons.value.filter { it.supports("stream", type, videoId) }.forEach { addon ->
+        addons().filter { it.supports("stream", type, videoId) }.forEach { addon ->
             launch {
                 val result = runCatching { Http.get(addon.url("stream", type, videoId)).optJSONArray("streams").mapObjects { StreamInfo.from(addon.name, it) } }
                 send(AddonStreams(addon.name, result.getOrDefault(emptyList()), result.isFailure))
@@ -107,7 +123,7 @@ object Repo {
 
     // Each addon's subtitles as they arrive: a slow addon doesn't hold back the others
     fun subtitles(type: String, videoId: String): Flow<List<SubtitleTrack>> = channelFlow {
-        _addons.value.filter { it.supports("subtitles", type, videoId) }.forEach { addon ->
+        addons().filter { it.supports("subtitles", type, videoId) }.forEach { addon ->
             launch {
                 val subs = withTimeoutOrNull(10_000) {
                     runCatching {
@@ -126,7 +142,7 @@ object Repo {
 
     // Each catalog's results as they arrive, tagged with its place among the catalogs so rows keep a stable order
     fun search(query: String): Flow<Pair<Int, SearchRow>> = channelFlow {
-        _addons.value.flatMap { a -> a.catalogs.filter { it.searchable } }.forEachIndexed { i, c ->
+        addons().flatMap { a -> a.catalogs.filter { it.searchable } }.forEachIndexed { i, c ->
             launch {
                 val row = withTimeoutOrNull(8_000) {
                     runCatching { SearchRow(c.title, catalogJson(c, listOf("search" to query)).mapObjects { MetaPreview.from(it, c.type) }) }.getOrNull()

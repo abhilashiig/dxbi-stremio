@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Before Android 12 (Fire TV) the window background is the launch screen: the M from the very first frame -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:drawable="@color/matinee_black" />
+    <item android:drawable="@drawable/matinee_mark" android:gravity="center" android:width="240dp" android:height="240dp" />
+</layer-list>

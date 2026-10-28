@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The Matinee M (brand/source/mark_transparent.svg) centred in a 170-unit box, so on Android 12's 240 dp
+     splash icon it sits inside the circular mask. ui/Intro.kt draws the same M at the same size and place. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="240dp" android:height="240dp" android:viewportWidth="170" android:viewportHeight="170">
+    <path android:pathData="M50,120L50,77A17.5,17.5 0 0,1 85,77L85,120M85,77A17.5,17.5 0 0,1 120,77L120,120"
+        android:fillColor="#00000000" android:strokeColor="#F2B441" android:strokeWidth="13" android:strokeLineJoin="round" />
+</vector>

@@ -191,17 +191,21 @@ private fun NavRail(tab: Tab, current: FocusRequester, onFocus: (Boolean) -> Uni
     var expanded by remember { mutableStateOf(false) }
     var focusedIndex by remember { mutableIntStateOf(tab.ordinal) }
     val glide = spring<Dp>(dampingRatio = 0.8f, stiffness = Spring.StiffnessMediumLow)
-    // No overshoot on the width: it must settle exactly at the rail's edge
-    val width by animateDpAsState(if (expanded) 280.dp else RailWidth, spring(dampingRatio = 1f, stiffness = Spring.StiffnessMediumLow), label = "width")
     val scrim by animateFloatAsState(if (expanded) 1f else 0f, tween(260), label = "scrim")
     // The highlight glides to whichever item has focus; the gold bar marks the page you're on
     val highlight by animateDpAsState((ItemHeight + ItemGap) * focusedIndex, glide, label = "highlight")
     val marker by animateDpAsState((ItemHeight + ItemGap) * tab.ordinal, glide, label = "marker")
 
-    Box(Modifier.fillMaxHeight().width(width)) {
+    Box(Modifier.fillMaxHeight()) {
         Box(Modifier.fillMaxHeight().width(RailWidth).background(Color.Black))
-        Box(Modifier.fillMaxSize().graphicsLayer { alpha = scrim }
-            .background(Brush.horizontalGradient(0f to Color.Black, 0.55f to Color(0xF0000000), 1f to Color.Transparent)))
+        // The rail melts into the page instead of ending in a hard edge
+        Box(Modifier.fillMaxHeight().offset(x = RailWidth).width(32.dp)
+            .background(Brush.horizontalGradient(listOf(Color.Black, Color(0x99000000), Color.Transparent))))
+        // Opened: a wide shade that eases off gradually across the page, Netflix style
+        Box(Modifier.fillMaxHeight().width(760.dp).graphicsLayer { alpha = scrim }.background(Brush.horizontalGradient(
+            0f to Color.Black, 0.2f to Color(0xF5000000), 0.38f to Color(0xD9000000), 0.56f to Color(0x99000000),
+            0.74f to Color(0x4D000000), 0.88f to Color(0x14000000), 1f to Color.Transparent,
+        )))
         // The brand stays on screen: the "M" mark on the slim rail, the full wordmark when it opens
         AnimatedVisibility(!expanded, enter = fadeIn(tween(250, 120)), exit = fadeOut(tween(120))) {
             Box(Modifier.width(RailWidth).padding(top = 30.dp), contentAlignment = Alignment.TopCenter) {

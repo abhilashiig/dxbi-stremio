@@ -6,10 +6,12 @@ import androidx.compose.animation.Crossfade
 import androidx.compose.animation.SizeTransform
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.LinearOutSlowInEasing
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -33,18 +35,22 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
@@ -85,23 +91,40 @@ fun HomeScreen(type: String? = null) {
     val progress = remember(continueWatching) { continueWatching.associate { it.id to it.progress } }
     val continueWatchingPreviews = remember(continueWatching) { continueWatching.map { it.preview() } }
 
-    // The billboard features the top title of the first row, filled in from its full details
-    val featuredPreview = rows.firstOrNull()?.items?.firstOrNull()
-    var featured by remember(featuredPreview?.id) { mutableStateOf(featuredPreview) }
-    LaunchedEffect(featuredPreview?.id) {
-        val f = featuredPreview ?: return@LaunchedEffect
-        if (f.background == null || f.logo == null || f.description == null) Repo.meta(f.type, f.id)?.preview?.let { featured = it }
+    // The billboard cycles through the first row's top titles (those with artwork), each filled in from its full
+    // details and with its backdrop decoded before it's shown, so every change is a clean crossfade
+    val context = LocalPlatformContext.current
+    val featuredList = remember(rows) {
+        val top = rows.firstOrNull()?.items.orEmpty()
+        top.filter { it.background != null }.take(6).ifEmpty { top.take(1) }
+    }
+    var featuredIndex by rememberSaveable(type) { mutableIntStateOf(0) }
+    var featured by remember { mutableStateOf<MetaPreview?>(null) }
+    LaunchedEffect(featuredList, featuredIndex) {
+        val f = featuredList.getOrNull(featuredIndex % featuredList.size.coerceAtLeast(1)) ?: return@LaunchedEffect
+        if (featured == null) featured = f
+        val full = if (f.background == null || f.logo == null || f.description == null) Repo.meta(f.type, f.id)?.preview ?: f else f
+        full.background?.let { context.imageLoader.execute(ImageRequest.Builder(context).data(it).build()) }
+        featured = full
     }
 
     // Which card had focus ("billboard" for its buttons): restored when coming back from a title
     var focusId by rememberSaveable { mutableStateOf<String?>(null) }
+    // Where focus was when this visit began (coming back from a title), before anything on the page takes it
+    val entryFocus = remember { focusId }
     var inBillboard by remember { mutableStateOf(true) }
     var focused by remember { mutableStateOf<MetaPreview?>(null) }
     var hero by remember { mutableStateOf<MetaPreview?>(null) }
 
+    // Next title every 9 s while the billboard is in view (the timer restarts after each change)
+    LaunchedEffect(inBillboard, featuredList, featured?.id) {
+        if (!inBillboard || featuredList.size < 2) return@LaunchedEffect
+        delay(9_000)
+        featuredIndex = (featuredIndex + 1) % featuredList.size
+    }
+
     // The strip follows focus after a short pause, so fast scrolling doesn't churn through backdrops. It changes
     // once everything is in hand (full details, backdrop decoded), so the crossfade never dips to black.
-    val context = LocalPlatformContext.current
     LaunchedEffect(focused) {
         val target = focused ?: return@LaunchedEffect
         if (hero == null) hero = target
@@ -118,17 +141,20 @@ fun HomeScreen(type: String? = null) {
         if (rows.isEmpty() && continueWatching.isEmpty()) {
             SkeletonRows(Modifier.padding(top = BillboardHeight))
         } else {
-            // Worked out once per visit (not per focus move), so moving focus doesn't recompose every row
-            val restoreKey = remember {
-                focusId ?: if (featured != null) BILLBOARD else continueWatching.firstOrNull()?.let { "cw/${it.id}" }
+            // Worked out per visit (not per focus move, so rows don't recompose as focus moves), and again once the
+            // billboard's titles arrive: the saved library can load a moment before them
+            val restoreKey = remember(featuredList.isNotEmpty()) {
+                entryFocus ?: if (featuredList.isNotEmpty()) BILLBOARD else continueWatching.firstOrNull()?.let { "cw/${it.id}" }
             }
             val play = remember { FocusRequester() }
+            val list = rememberLazyListState()
             CompositionLocalProvider(LocalBringIntoViewSpec provides rememberPivot(HeroHeight + 40.dp)) {
-                LazyColumn(state = rememberLazyListState(), modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 320.dp)) {
-                    featured?.let { f ->
+                LazyColumn(state = list, modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 320.dp)) {
+                    if (featuredList.isNotEmpty()) {
                         item(BILLBOARD) {
+                            val f = featured ?: featuredList.first()
                             Billboard(
-                                f, visible = inBillboard, play = play,
+                                f, featuredList.size, featuredIndex % featuredList.size, visible = inBillboard, play = play,
                                 onFocus = { inBillboard = true; focusId = BILLBOARD },
                                 onPlay = {
                                     if (f.type == "movie") nav.push(Route.Streams(f, null, library.firstOrNull { it.id == f.id }?.timeOffset ?: 0))
@@ -159,7 +185,15 @@ fun HomeScreen(type: String? = null) {
                     }
                 }
             }
-            if (restoreKey == BILLBOARD) LaunchedEffect(Unit) { runCatching { play.requestFocus() } }
+            // Saved library can arrive before the rows and focus Continue Watching, scrolling the billboard away: bring
+            // the top back, then focus it once it's laid out
+            if (restoreKey == BILLBOARD) LaunchedEffect(Unit) {
+                list.scrollToItem(0)
+                repeat(10) {
+                    withFrameNanos { }
+                    if (runCatching { play.requestFocus(FocusDirection.Enter) }.getOrDefault(false)) return@LaunchedEffect
+                }
+            }
         }
     }
 }
@@ -179,29 +213,45 @@ private fun Backdrop(url: String?) {
     Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0.45f to Color.Transparent, 0.85f to Color(0xE6000000), 1f to Color.Black)))
 }
 
-// The buttons sit within the top HeroHeight, so focusing them scrolls the page back to the very top
+// The buttons sit within the top HeroHeight, so focusing them scrolls the page back to the very top. Only the title
+// block changes as the billboard cycles; the buttons stay put and keep focus.
 @Composable
-private fun Billboard(meta: MetaPreview, visible: Boolean, play: FocusRequester, onFocus: () -> Unit, onPlay: () -> Unit, onInfo: () -> Unit) {
+private fun Billboard(
+    meta: MetaPreview, count: Int, index: Int, visible: Boolean, play: FocusRequester,
+    onFocus: () -> Unit, onPlay: () -> Unit, onInfo: () -> Unit,
+) {
     val alpha by animateFloatAsState(if (visible) 1f else 0f, tween(250), label = "billboard")
     Column(Modifier.fillMaxWidth().height(BillboardHeight).graphicsLayer { this.alpha = alpha }.padding(start = Edge, top = 48.dp)) {
-        Text(if (meta.type == "movie") "FILM" else typeLabel(meta.type).removeSuffix("s").uppercase(),
-            fontSize = 12.sp, fontWeight = FontWeight.Bold, letterSpacing = 4.sp, color = Gold)
-        Spacer(Modifier.height(8.dp))
-        if (meta.logo != null) {
-            AsyncImage(meta.logo, meta.name, contentScale = ContentScale.Fit, alignment = Alignment.CenterStart,
-                modifier = Modifier.heightIn(max = 90.dp).widthIn(max = 380.dp))
-        } else {
-            Text(meta.name, fontSize = 36.sp, fontWeight = FontWeight.Black, color = Color.White, maxLines = 2, overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.width(480.dp))
+        AnimatedContent(
+            meta,
+            transitionSpec = {
+                ((fadeIn(tween(500, delayMillis = 150)) + slideInHorizontally(tween(500, delayMillis = 150)) { it / 24 }) togetherWith
+                    fadeOut(tween(220))).using(SizeTransform(clip = false))
+            },
+            contentKey = { it.id },
+            label = "billboard",
+        ) { m ->
+            Column(Modifier.height(218.dp)) {
+                Text(if (m.type == "movie") "FILM" else typeLabel(m.type).removeSuffix("s").uppercase(),
+                    fontSize = 12.sp, fontWeight = FontWeight.Bold, letterSpacing = 4.sp, color = Gold)
+                Spacer(Modifier.height(8.dp))
+                if (m.logo != null) {
+                    AsyncImage(m.logo, m.name, contentScale = ContentScale.Fit, alignment = Alignment.CenterStart,
+                        modifier = Modifier.heightIn(max = 90.dp).widthIn(max = 380.dp))
+                } else {
+                    Text(m.name, fontSize = 36.sp, fontWeight = FontWeight.Black, color = Color.White, maxLines = 2, overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.width(480.dp))
+                }
+                Spacer(Modifier.height(12.dp))
+                m.description?.let {
+                    Text(it, fontSize = 14.sp, color = Color(0xFFE0E0E0), maxLines = 3, overflow = TextOverflow.Ellipsis, lineHeight = 19.sp,
+                        modifier = Modifier.width(440.dp))
+                }
+            }
         }
-        Spacer(Modifier.height(12.dp))
-        meta.description?.let {
-            Text(it, fontSize = 14.sp, color = Color(0xFFE0E0E0), maxLines = 3, overflow = TextOverflow.Ellipsis, lineHeight = 19.sp,
-                modifier = Modifier.width(440.dp))
-        }
-        Spacer(Modifier.height(18.dp))
+        Spacer(Modifier.height(4.dp))
         val last = LocalLastFocus.current
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.onFocusChanged { if (it.hasFocus) { last.requester = play; onFocus() } }) {
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.onFocusChanged { if (it.hasFocus) { last.requester = play; onFocus() } }) {
             Button(
                 onClick = onPlay, modifier = Modifier.focusRequester(play),
                 colors = ButtonDefaults.colors(containerColor = Color(0xFFE8E8E8), contentColor = Color.Black, focusedContainerColor = Color.White, focusedContentColor = Color.Black),
@@ -210,6 +260,7 @@ private fun Billboard(meta: MetaPreview, visible: Boolean, play: FocusRequester,
                 Spacer(Modifier.width(8.dp))
                 Text("Play", fontWeight = FontWeight.Bold)
             }
+            Spacer(Modifier.width(12.dp))
             Button(
                 onClick = onInfo,
                 colors = ButtonDefaults.colors(containerColor = Color(0x66808080), contentColor = Color.White, focusedContainerColor = Color.White, focusedContentColor = Color.Black),
@@ -217,6 +268,16 @@ private fun Billboard(meta: MetaPreview, visible: Boolean, play: FocusRequester,
                 Icon(Icons.Info, null, Modifier.size(20.dp))
                 Spacer(Modifier.width(8.dp))
                 Text("More Info", fontWeight = FontWeight.Bold)
+            }
+            if (count > 1) {
+                Spacer(Modifier.width(28.dp))
+                // Where the billboard is in its cycle
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    repeat(count) { i ->
+                        val width by animateDpAsState(if (i == index) 22.dp else 6.dp, tween(350), label = "dot")
+                        Box(Modifier.size(width, 6.dp).background(if (i == index) Gold else Color(0x66FFFFFF), RoundedCornerShape(3.dp)))
+                    }
+                }
             }
         }
     }

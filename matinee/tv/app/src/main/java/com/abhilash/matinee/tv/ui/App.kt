@@ -15,6 +15,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
@@ -83,12 +84,14 @@ fun MatineeApp(deepLink: StateFlow<Route?>) {
     CompositionLocalProvider(LocalNav provides nav) {
         val top = stack.last()
         holder.SaveableStateProvider("${stack.lastIndex}:$top") {
-            when (top) {
-                Route.Main -> MainScreen()
-                is Route.Details -> DetailsScreen(top.type, top.id)
-                is Route.Streams -> StreamsScreen(top)
-                Route.Report -> DeviceReportScreen()
-                Route.Tests -> PlaybackTestsScreen()
+            FadeIn {
+                when (top) {
+                    Route.Main -> MainScreen()
+                    is Route.Details -> DetailsScreen(top.type, top.id)
+                    is Route.Streams -> StreamsScreen(top)
+                    Route.Report -> DeviceReportScreen()
+                    Route.Tests -> PlaybackTestsScreen()
+                }
             }
         }
     }
@@ -103,11 +106,15 @@ fun MainScreen() {
     // Home takes focus when Main is entered (launch, or Back from a title), not while the tab bar is browsed
     var tabBrowsed by remember { mutableStateOf(false) }
     Box(Modifier.fillMaxSize().background(Color.Black)) {
-        when (tab) {
-            0 -> HomeScreen(takeFocus = !tabBrowsed)
-            1 -> SearchScreen()
-            2 -> LibraryScreen()
-            else -> SettingsScreen()
+        key(tab) {
+            FadeIn {
+                when (tab) {
+                    0 -> HomeScreen(takeFocus = !tabBrowsed)
+                    1 -> SearchScreen()
+                    2 -> LibraryScreen()
+                    else -> SettingsScreen()
+                }
+            }
         }
         Row(
             Modifier.fillMaxWidth().background(Brush.verticalGradient(listOf(Color(0xE6000000), Color.Transparent)))

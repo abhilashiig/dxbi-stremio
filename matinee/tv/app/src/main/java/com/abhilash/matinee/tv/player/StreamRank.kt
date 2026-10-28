@@ -143,3 +143,14 @@ private fun badges(t: StreamTags) = buildList {
     if (t.cached == true) add("Instant")
     t.sizeBytes?.let { add(if (it >= 1e9) "%.1f GB".format(it / 1e9) else "%.0f MB".format(it / 1e6)) }
 }
+
+val QUALITIES = listOf("4K", "1440p", "1080p", "720p", "SD", "Other")
+
+fun quality(t: StreamTags) = when (t.height) { 2160 -> "4K"; 1440 -> "1440p"; 1080 -> "1080p"; 720 -> "720p"; 480 -> "SD"; else -> "Other" }
+
+// Instant = known to be cached by the debrid service. Addons that never say either way (they usually list only
+// what's ready) count as instant; unmarked streams from an addon that does flag uncached ones don't.
+fun instantOnly(streams: List<RankedStream>): List<RankedStream> {
+    val flagsUncached = streams.filter { it.tags.cached == false }.map { it.stream.addon }.toSet()
+    return streams.filter { it.tags.cached == true || (it.tags.cached == null && it.stream.addon !in flagsUncached) }
+}

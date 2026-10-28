@@ -7,6 +7,7 @@ import android.hardware.display.DisplayManager
 import android.media.AudioDeviceCallback
 import android.media.AudioDeviceInfo
 import android.media.AudioManager
+import android.media.MediaCodecList
 import android.net.Uri
 import android.os.Bundle
 import android.os.Handler
@@ -66,12 +67,17 @@ data class PlayRequest(
     val videoId: String? = null,
     val poster: String? = null,
     val resumeMs: Long = 0,
+    val logo: String? = null,
+    val background: String? = null,
+    // The stream's name/description/filename: says what the container may not (HDR10+, Atmos in TrueHD)
+    val streamText: String? = null,
 ) {
     fun meta() = if (metaId != null && type != null) MetaPreview(metaId, type, title, poster, null, null, null, null, null, emptyList()) else null
 
     fun intent(context: Context) = Intent(context, PlayerActivity::class.java)
         .putExtra("url", url).putExtra("headers", HashMap(headers)).putExtra("title", title).putExtra("subtitle", subtitle)
         .putExtra("metaId", metaId).putExtra("type", type).putExtra("videoId", videoId).putExtra("poster", poster).putExtra("resumeMs", resumeMs)
+        .putExtra("logo", logo).putExtra("background", background).putExtra("streamText", streamText)
 
     companion object {
         @Suppress("UNCHECKED_CAST", "DEPRECATION")
@@ -85,6 +91,9 @@ data class PlayRequest(
             videoId = i.getStringExtra("videoId"),
             poster = i.getStringExtra("poster"),
             resumeMs = i.getLongExtra("resumeMs", 0),
+            logo = i.getStringExtra("logo"),
+            background = i.getStringExtra("background"),
+            streamText = i.getStringExtra("streamText"),
         )
     }
 }
@@ -109,6 +118,13 @@ class PlayerActivity : ComponentActivity(), PlayerActions {
     private var videoDecoder = ""
     private var audioDecoder = ""
     private var audioOutput = ""
+    private var dolbyVisionDecoder = false
+    private var audioPassthrough: Boolean? = null
+    private var outputChannels = 0
+    private val caps by lazy { Capabilities.rank(this) }
+    private val tags by lazy { streamTags(request.streamText.orEmpty()) }
+    // Streams are huge and read once: kept out of the HTTP cache the addon calls use
+    private val streamClient by lazy { Http.client.newBuilder().cache(null).build() }
     private var droppedFrames = 0
     private var dropWindow = ArrayDeque<Pair<Long, Int>>()
 
@@ -122,7 +138,7 @@ class PlayerActivity : ComponentActivity(), PlayerActions {
             setShutterBackgroundColor(android.graphics.Color.BLACK)
             subtitleView?.setFractionalTextSize(SubtitleView.DEFAULT_TEXT_SIZE_FRACTION * Settings.subtitleScale)
         }
-        setContent { MatineeTheme { PlayerScreen(playerView, ui, this, request.title, request.subtitle) } }
+        setContent { MatineeTheme { PlayerScreen(playerView, ui, this, request) } }
         getSystemService(AudioManager::class.java).registerAudioDeviceCallback(deviceCallback, handler)
     }
 
@@ -198,7 +214,7 @@ class PlayerActivity : ComponentActivity(), PlayerActions {
             .setPrioritizeTimeOverSizeThresholds(false)
             .build()
 
-        val http = OkHttpDataSource.Factory(Http.client).setDefaultRequestProperties(request.headers)
+        val http = OkHttpDataSource.Factory(streamClient).setDefaultRequestProperties(request.headers)
         return ExoPlayer.Builder(this)
             .setTrackSelector(trackSelector)
             .setLoadControl(loadControl)
@@ -264,12 +280,18 @@ class PlayerActivity : ComponentActivity(), PlayerActions {
             selectedFormat(tracks, C.TRACK_TYPE_VIDEO)?.frameRate?.takeIf { it > 0 }?.let { matchFrameRate(it) }
         }
 
+        override fun onRenderedFirstFrame() {
+            ui.started = true
+        }
+
         override fun onPlayerError(error: PlaybackException) = handleError(error)
     }
 
     private val analytics = object : AnalyticsListener {
         override fun onVideoDecoderInitialized(eventTime: AnalyticsListener.EventTime, decoderName: String, initializedTimestampMs: Long, initializationDurationMs: Long) {
             videoDecoder = decoderName
+            dolbyVisionDecoder = MediaCodecList(MediaCodecList.ALL_CODECS).codecInfos
+                .any { it.name == decoderName && it.supportedTypes.any { t -> t.equals(MimeTypes.VIDEO_DOLBY_VISION, true) } }
         }
 
         override fun onAudioDecoderInitialized(eventTime: AnalyticsListener.EventTime, decoderName: String, initializedTimestampMs: Long, initializationDurationMs: Long) {
@@ -278,6 +300,8 @@ class PlayerActivity : ComponentActivity(), PlayerActions {
 
         override fun onAudioTrackInitialized(eventTime: AnalyticsListener.EventTime, config: AudioSink.AudioTrackConfig) {
             val channels = Integer.bitCount(config.channelConfig)
+            audioPassthrough = !isPcm(config.encoding)
+            outputChannels = channels
             audioOutput = if (isPcm(config.encoding)) "Decoded on this device to $channels-channel PCM"
             else "Passthrough (${encodingName(config.encoding)}) to your TV/receiver"
         }
@@ -396,6 +420,7 @@ class PlayerActivity : ComponentActivity(), PlayerActions {
                 ui.position = it.currentPosition
                 ui.duration = it.duration.coerceAtLeast(0)
                 ui.buffered = it.bufferedPosition
+                ui.badges = formatBadges(it.videoFormat, dolbyVisionDecoder, it.audioFormat, audioPassthrough, outputChannels, tags, caps)
                 if (it.isPlaying && ++sinceSave >= 60) { sinceSave = 0; saveProgress() }
             }
             handler.postDelayed(this, 500)
@@ -439,8 +464,11 @@ class PlayerActivity : ComponentActivity(), PlayerActions {
         player?.let { if (it.isPlaying) it.pause() else it.play() }
     }
 
-    override fun seekBy(ms: Long) {
-        player?.let { it.seekTo((it.currentPosition + ms).coerceIn(0, it.duration.coerceAtLeast(0))) }
+    override fun seekTo(ms: Long) {
+        val p = player ?: return
+        val target = ms.coerceIn(0, p.duration.coerceAtLeast(0))
+        p.seekTo(target)
+        ui.position = target
     }
 
     override fun selectTrack(group: Tracks.Group, index: Int) {
@@ -593,4 +621,33 @@ fun audioLabel(f: Format): String {
     val channels = when (f.channelCount) { 1 -> "Mono"; 2 -> "Stereo"; 6 -> "5.1"; 8 -> "7.1"; Format.NO_VALUE -> ""; else -> "${f.channelCount} ch" }
     val atmos = if (f.label?.contains("atmos", true) == true && "Atmos" !in codec) " · Atmos" else ""
     return listOf(languageName(f.language), "$codec$atmos", channels).filter { it.isNotEmpty() }.joinToString(" · ")
+}
+
+// What is really reaching the screen and speakers, for the player's badges. The container says most of it; the
+// stream's own description fills in what containers rarely carry (HDR10+, Atmos inside TrueHD).
+fun formatBadges(
+    video: Format?, dolbyVisionDecoder: Boolean, audio: Format?, passthrough: Boolean?, outputChannels: Int, tags: StreamTags, caps: RankCaps,
+): List<String> = buildList {
+    if (video != null) {
+        when {
+            video.width >= 3200 || video.height >= 2000 -> add("4K")
+            video.width >= 1800 || video.height >= 1000 -> add("HD")
+        }
+        val transfer = video.colorInfo?.colorTransfer
+        val pq = transfer == C.COLOR_TRANSFER_ST2084 || ((transfer == null || transfer == Format.NO_VALUE) && tags.hdr && !tags.hlg)
+        when {
+            video.sampleMimeType == MimeTypes.VIDEO_DOLBY_VISION && dolbyVisionDecoder && caps.dolbyVision -> add("DOLBY VISION")
+            pq && tags.hdr10Plus && caps.hdr10Plus -> add("HDR10+")
+            pq && caps.hdr10 -> add("HDR10")
+            (transfer == C.COLOR_TRANSFER_HLG || tags.hlg) && caps.hlg -> add("HLG")
+        }
+    }
+    if (audio != null && passthrough != null) {
+        val atmos = audio.sampleMimeType == MIME_EAC3_JOC ||
+            (audio.sampleMimeType in setOf(MIME_EAC3, MIME_TRUEHD) && (tags.atmos || audio.label?.contains("atmos", true) == true))
+        // Decoded to PCM, Atmos height channels are gone: only claim it when the bitstream reaches the TV/receiver
+        if (passthrough && atmos) add("DOLBY ATMOS")
+        if (passthrough && audio.sampleMimeType == MIME_DTS_UHD) add("DTS:X")
+        when (if (passthrough) audio.channelCount else outputChannels) { 6 -> add("5.1"); 8 -> add("7.1") }
+    }
 }

@@ -1,5 +1,9 @@
 package com.abhilash.matinee.tv.player
 
+import androidx.media3.common.C
+import androidx.media3.common.ColorInfo
+import androidx.media3.common.Format
+import androidx.media3.common.MimeTypes
 import com.abhilash.matinee.tv.data.StreamInfo
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -81,5 +85,28 @@ class PlayerLogicTest {
         assertNull(modeForFrameRate(23.976f, modes[1], modes))
         // Only 24 Hz available: still far better than 60 Hz for 23.976 fps
         assertEquals(3, modeForFrameRate(23.976f, at60, modes.filter { it.id != 2 })?.id)
+    }
+
+    @Test fun instantOnlyKeepsCachedAndAddonsThatNeverSay() {
+        val ranked = rankStreams(listOf(
+            StreamInfo("Torrentio", "https://t/1", "[RD+] 4k", "", emptyMap(), null, null),
+            StreamInfo("Torrentio", "https://t/2", "[RD download] 4k", "", emptyMap(), null, null),
+            StreamInfo("Torrentio", "https://t/3", "4k", "", emptyMap(), null, null),
+            StreamInfo("HTTP", "https://h/1", "1080p", "", emptyMap(), null, null),
+        ), dvTv)
+        assertEquals(setOf("https://t/1", "https://h/1"), instantOnly(ranked).map { it.stream.url }.toSet())
+        assertEquals("4K", quality(ranked.first().tags))
+    }
+
+    @Test fun badgesShowWhatReallyPlays() {
+        val pq = ColorInfo.Builder().setColorTransfer(C.COLOR_TRANSFER_ST2084).build()
+        val dv = Format.Builder().setSampleMimeType(MimeTypes.VIDEO_DOLBY_VISION).setWidth(3840).setHeight(2160).setColorInfo(pq).build()
+        val hevc = dv.buildUpon().setSampleMimeType(MimeTypes.VIDEO_H265).build()
+        val ddpAtmos = Format.Builder().setSampleMimeType(MIME_EAC3_JOC).setChannelCount(6).build()
+        val tags = streamTags("4k DV HDR10+ DDP5.1 Atmos")
+        assertEquals(listOf("4K", "DOLBY VISION", "DOLBY ATMOS", "5.1"), formatBadges(dv, true, ddpAtmos, true, 6, tags, dvTv))
+        // Profile 8 on an HEVC decoder is HDR10 (or HDR10+); Atmos decoded to stereo PCM isn't Atmos any more
+        assertEquals(listOf("4K", "HDR10+"), formatBadges(dv, false, ddpAtmos, false, 2, tags, hd10Stick))
+        assertEquals(listOf("4K", "HDR10"), formatBadges(hevc, false, null, null, 0, tags, dvTv))
     }
 }

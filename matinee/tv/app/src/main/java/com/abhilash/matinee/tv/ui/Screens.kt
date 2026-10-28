@@ -254,7 +254,7 @@ fun PlaybackTestsScreen() {
         }
         items(TEST_CLIPS, key = { it.second }) { (title, path) ->
             Surface(
-                onClick = { activity.startActivity(PlayRequest(url = TESTS + path, title = title).intent(activity)) },
+                onClick = { activity.startActivity(PlayRequest(url = TESTS + path, title = title, streamText = title).intent(activity)) },
                 modifier = Modifier.width(640.dp).then(if (path == TEST_CLIPS.first().second) Modifier.focusRequester(first) else Modifier),
                 colors = ClickableSurfaceDefaults.colors(containerColor = Panel, focusedContainerColor = Color(0xFF2A2A2A), contentColor = Color.White, focusedContentColor = Color.White),
                 scale = ClickableSurfaceDefaults.scale(focusedScale = 1.01f),

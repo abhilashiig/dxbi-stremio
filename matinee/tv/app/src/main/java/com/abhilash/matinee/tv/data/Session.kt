@@ -110,6 +110,15 @@ object Settings {
         get() = prefs.getFloat("subtitleScale", 1f)
         set(v) = prefs.edit().putFloat("subtitleScale", v).apply()
 
+    var instantOnly: Boolean
+        get() = prefs.getBoolean("instantOnly", true)
+        set(v) = prefs.edit().putBoolean("instantOnly", v).apply()
+
+    // Addon name the stream list is filtered to, or null for all
+    var preferredAddon: String?
+        get() = prefs.getString("preferredAddon", null)
+        set(v) = prefs.edit().putString("preferredAddon", v).apply()
+
     // Audio outputs where passthrough failed or was silent, so Matinee decodes to PCM there
     fun forcePcm(output: String) = output in prefs.getStringSet("forcePcm", emptySet())!!
 

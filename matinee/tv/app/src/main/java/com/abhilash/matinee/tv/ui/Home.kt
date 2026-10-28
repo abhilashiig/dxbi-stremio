@@ -1,5 +1,15 @@
 package com.abhilash.matinee.tv.ui
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.SizeTransform
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.LinearOutSlowInEasing
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.LocalBringIntoViewSpec
@@ -29,6 +39,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -36,6 +47,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Text
 import coil3.compose.AsyncImage
+import coil3.compose.LocalPlatformContext
+import coil3.imageLoader
+import coil3.request.ImageRequest
 import com.abhilash.matinee.tv.data.Library
 import com.abhilash.matinee.tv.data.MetaPreview
 import com.abhilash.matinee.tv.data.Repo
@@ -56,14 +70,16 @@ fun HomeScreen(takeFocus: Boolean) {
     var focused by remember { mutableStateOf<MetaPreview?>(null) }
     var hero by remember { mutableStateOf<MetaPreview?>(null) }
 
-    // The hero follows focus after a short pause, so fast scrolling doesn't churn through backdrops
+    // The hero follows focus after a short pause, so fast scrolling doesn't churn through backdrops. It changes
+    // once everything is in hand (full details, backdrop decoded), so the crossfade never dips to black.
+    val context = LocalPlatformContext.current
     LaunchedEffect(focused) {
         val target = focused ?: return@LaunchedEffect
-        delay(220)
-        hero = target
-        if (target.background == null || target.description == null) {
-            Repo.meta(target.type, target.id)?.preview?.let { full -> if (focused?.id == full.id) hero = full }
-        }
+        if (hero == null) hero = target // first paint: the title at once, the rest when it arrives
+        delay(200)
+        val full = if (target.background == null || target.description == null) Repo.meta(target.type, target.id)?.preview ?: target else target
+        full.background?.let { context.imageLoader.execute(ImageRequest.Builder(context).data(it).build()) }
+        hero = full
     }
 
     // Before anything is focused (arriving via the tab bar), the hero shows the first title
@@ -74,7 +90,7 @@ fun HomeScreen(takeFocus: Boolean) {
     Box(Modifier.fillMaxSize().background(Color.Black)) {
         Hero(hero)
         if (rows.isEmpty() && continueWatching.isEmpty()) {
-            Spinner(Modifier.align(Alignment.Center))
+            SkeletonRows(Modifier.padding(top = HeroHeight))
         } else {
             // Worked out once per visit (not per focus move), so moving focus doesn't recompose every row
             val restoreKey = remember {
@@ -115,27 +131,39 @@ fun HomeScreen(takeFocus: Boolean) {
 @Composable
 fun Hero(meta: MetaPreview?) {
     Box(Modifier.fillMaxWidth().height(HeroHeight + 120.dp)) {
-        if (meta?.background != null) {
-            AsyncImage(
-                meta.background, null, contentScale = ContentScale.Crop,
-                modifier = Modifier.align(Alignment.TopEnd).fillMaxWidth(0.72f).fillMaxHeight(),
-            )
+        Crossfade(meta?.background, Modifier.align(Alignment.TopEnd).fillMaxWidth(0.72f).fillMaxHeight(), tween(700), label = "backdrop") { url ->
+            if (url != null) {
+                // Each new backdrop settles in with a slow push-out, Apple TV style; finite, so it costs nothing at rest
+                val zoom = remember { Animatable(1.06f) }
+                LaunchedEffect(Unit) { zoom.animateTo(1f, tween(1600, easing = LinearOutSlowInEasing)) }
+                AsyncImage(url, null, contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize().graphicsLayer { scaleX = zoom.value; scaleY = zoom.value })
+            }
         }
         Box(Modifier.fillMaxSize().background(Brush.horizontalGradient(0.25f to Color.Black, 0.6f to Color(0x99000000), 1f to Color.Transparent)))
         Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0.55f to Color.Transparent, 1f to Color.Black)))
-        if (meta != null) {
-            Column(Modifier.padding(start = Edge, top = TopBarHeight + 8.dp).width(440.dp)) {
-                if (meta.logo != null) {
-                    AsyncImage(meta.logo, meta.name, contentScale = ContentScale.Fit, alignment = Alignment.CenterStart,
-                        modifier = Modifier.heightIn(max = 64.dp).fillMaxWidth(0.8f))
-                } else {
-                    Text(meta.name, fontSize = 30.sp, fontWeight = FontWeight.Bold, color = Color.White, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                }
-                Spacer(Modifier.height(10.dp))
-                MetaLine(meta)
-                Spacer(Modifier.height(8.dp))
-                meta.description?.let {
-                    Text(it, fontSize = 14.sp, color = Color(0xFFCFCFCF), maxLines = 3, overflow = TextOverflow.Ellipsis, lineHeight = 19.sp)
+        AnimatedContent(
+            meta,
+            transitionSpec = {
+                ((fadeIn(tween(450, delayMillis = 120)) + slideInVertically(tween(450, delayMillis = 120)) { it / 14 }) togetherWith fadeOut(tween(180)))
+                    .using(SizeTransform(clip = false))
+            },
+            label = "hero",
+        ) { m ->
+            if (m != null) {
+                Column(Modifier.padding(start = Edge, top = TopBarHeight + 8.dp).width(440.dp)) {
+                    if (m.logo != null) {
+                        AsyncImage(m.logo, m.name, contentScale = ContentScale.Fit, alignment = Alignment.CenterStart,
+                            modifier = Modifier.heightIn(max = 64.dp).fillMaxWidth(0.8f))
+                    } else {
+                        Text(m.name, fontSize = 30.sp, fontWeight = FontWeight.Bold, color = Color.White, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    }
+                    Spacer(Modifier.height(10.dp))
+                    MetaLine(m)
+                    Spacer(Modifier.height(8.dp))
+                    m.description?.let {
+                        Text(it, fontSize = 14.sp, color = Color(0xFFCFCFCF), maxLines = 3, overflow = TextOverflow.Ellipsis, lineHeight = 19.sp)
+                    }
                 }
             }
         }

@@ -1,6 +1,8 @@
 package com.abhilash.matinee.tv.ui
 
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
@@ -13,7 +15,10 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.BringIntoViewSpec
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -50,6 +55,7 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -65,6 +71,7 @@ import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Border
 import androidx.tv.material3.Card
 import androidx.tv.material3.CardDefaults
+import androidx.tv.material3.Glow
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import androidx.tv.material3.Surface
@@ -148,16 +155,15 @@ fun PosterCard(
         onClick = onClick,
         modifier = Modifier.size(width, width * 1.5f).focusRequester(requester).onFocusChanged { if (it.isFocused) onFocus() },
         shape = CardDefaults.shape(RoundedCornerShape(6.dp)),
-        scale = CardDefaults.scale(focusedScale = 1.08f),
-        border = CardDefaults.border(focusedBorder = Border(BorderStroke(2.dp, Gold), shape = RoundedCornerShape(6.dp))),
+        scale = CardDefaults.scale(focusedScale = 1.1f),
+        border = CardDefaults.border(focusedBorder = Border(BorderStroke(2.dp, Color.White), shape = RoundedCornerShape(6.dp))),
+        glow = CardDefaults.glow(focusedGlow = Glow(Color(0x66F2B441), 14.dp)),
         colors = CardDefaults.colors(containerColor = Color(0xFF1E1E1E)),
     ) {
         Box(Modifier.fillMaxSize()) {
-            if (meta.poster == null) {
-                Text(meta.name, fontSize = 13.sp, color = Color.White, textAlign = TextAlign.Center, modifier = Modifier.align(Alignment.Center).padding(8.dp))
-            } else {
-                AsyncImage(meta.poster, meta.name, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
-            }
+            // Shows until the poster arrives, and stays when there is none
+            Text(meta.name, fontSize = 13.sp, color = Muted, textAlign = TextAlign.Center, modifier = Modifier.align(Alignment.Center).padding(8.dp))
+            if (meta.poster != null) AsyncImage(meta.poster, meta.name, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
             if (progress != null && progress > 0f) {
                 Box(Modifier.align(Alignment.BottomStart).fillMaxWidth().height(4.dp).background(Color(0x99000000))) {
                     Box(Modifier.fillMaxWidth(progress).height(4.dp).background(Gold))
@@ -260,4 +266,27 @@ fun InputField(
 fun Chip(text: String, color: Color = Color(0xFF2C2C2C), textColor: Color = Color.White) {
     Text(text, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = textColor,
         modifier = Modifier.background(color, RoundedCornerShape(4.dp)).padding(horizontal = 8.dp, vertical = 3.dp))
+}
+
+// Each screen eases in instead of snapping, so moving between screens feels like one app
+@Composable
+fun FadeIn(content: @Composable () -> Unit) {
+    val alpha = remember { Animatable(0f) }
+    LaunchedEffect(Unit) { alpha.animateTo(1f, tween(280)) }
+    Box(Modifier.fillMaxSize().graphicsLayer { this.alpha = alpha.value }) { content() }
+}
+
+// Placeholder rows that breathe while Home loads for the first time
+@Composable
+fun SkeletonRows(modifier: Modifier = Modifier) {
+    val transition = rememberInfiniteTransition(label = "skeleton")
+    val alpha by transition.animateFloat(0.35f, 0.7f, infiniteRepeatable(tween(900), RepeatMode.Reverse), label = "alpha")
+    Column(modifier.graphicsLayer { this.alpha = alpha }) {
+        repeat(3) {
+            Box(Modifier.padding(start = Edge, bottom = 12.dp).size(160.dp, 16.dp).background(Color(0xFF262626), RoundedCornerShape(4.dp)))
+            Row(Modifier.padding(start = Edge, bottom = 24.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                repeat(7) { Box(Modifier.width(116.dp).height(174.dp).background(Color(0xFF1C1C1C), RoundedCornerShape(6.dp))) }
+            }
+        }
+    }
 }

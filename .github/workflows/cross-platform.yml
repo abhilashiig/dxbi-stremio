@@ -46,7 +46,12 @@ jobs:
       - name: Published installer (Windows PowerShell 5.1)
         if: runner.os == 'Windows'
         shell: powershell
-        run: irm https://github.com/abhilashiig/dxbi-stremio/releases/latest/download/install.ps1 | iex
+        # retried: GitHub's release CDN sometimes drops the connection ("closed unexpectedly")
+        run: |
+          for ($i = 1; ; $i++) {
+            try { irm https://github.com/abhilashiig/dxbi-stremio/releases/latest/download/install.ps1 | iex; break }
+            catch { if ($i -ge 3) { throw }; Write-Host "attempt $i failed: $_"; Start-Sleep 10 }
+          }
       - name: Published installer (bash)
         if: runner.os != 'Windows'
         run: curl -fsSL https://github.com/abhilashiig/dxbi-stremio/releases/latest/download/install.sh | bash

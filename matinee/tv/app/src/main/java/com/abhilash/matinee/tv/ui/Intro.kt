@@ -61,11 +61,14 @@ private const val VIEW = 170f
 private const val OFFSET = 35f
 private val LightGold = Color(0xFFFFE7B0)
 
-// Start-up ident, timed to res/raw/intro.ogg. The M is already on screen from the launch screen; on the "ta" a streak
-// of light runs along it, on the "DUM" (450 ms) it punches with a flash, the wordmark rises, then it zooms through
+// Start-up ident, timed to res/raw/intro.ogg ("Projector", brand/source/intro_sound.py). The M is already on screen from
+// the launch screen; it flickers like a projector beam while the projector clatters, a streak of light runs along it
+// with the "Ma-ti" notes (450 and 630 ms), it punches with a flash on the "NEE" (870 ms), the wordmark rises, then it
+// zooms through
 @Composable
 fun Intro(sound: IntroSound, onDone: () -> Unit) {
     val sweep = remember { Animatable(0f) }
+    val flicker = remember { Animatable(1f) }
     val land = remember { Animatable(1f) }
     val light = remember { Animatable(0f) }
     val word = remember { Animatable(0f) }
@@ -78,14 +81,25 @@ fun Intro(sound: IntroSound, onDone: () -> Unit) {
         withTimeoutOrNull(1_500) { Library.awaitLoaded(); Repo.awaitLoaded() }
         repeat(4) { withFrameNanos { } }
         sound.play()
-        launch { sweep.animateTo(1f, tween(470, easing = LinearEasing)) }
-        launch { land.animateTo(0.94f, tween(450, easing = FastOutSlowInEasing)) }
+        val start = System.nanoTime()
+        // Projector beam: a slight frame-rate flicker that steadies as the projector winds down
+        launch {
+            val random = java.util.Random()
+            while (System.nanoTime() - start < 820_000_000L) {
+                flicker.snapTo(0.82f + 0.18f * random.nextFloat())
+                delay(42)
+            }
+            flicker.animateTo(1f, tween(60))
+        }
+        launch { land.animateTo(0.94f, tween(870, easing = FastOutSlowInEasing)) }
         delay(450)
+        launch { sweep.animateTo(1f, tween(420, easing = LinearEasing)) }
+        delay(420)
         launch { land.snapTo(1.1f); land.animateTo(1f, spring(dampingRatio = 0.42f, stiffness = Spring.StiffnessMediumLow)) }
         launch { light.animateTo(1f, tween(80)); light.animateTo(0.3f, tween(1000)) }
         delay(200)
         launch { word.animateTo(1f, tween(650, easing = LinearOutSlowInEasing)) }
-        delay(1050)
+        delay(950)
         out.animateTo(1f, tween(460, easing = FastOutLinearInEasing))
         onDone()
     }
@@ -93,7 +107,7 @@ fun Intro(sound: IntroSound, onDone: () -> Unit) {
     Box(Modifier.fillMaxSize().graphicsLayer { alpha = 1f - out.value }.background(Color.Black), contentAlignment = Alignment.Center) {
         Box(Modifier.size(760.dp).graphicsLayer { alpha = light.value }
             .background(Brush.radialGradient(listOf(Gold.copy(alpha = 0.22f), Color.Transparent))))
-        Canvas(Modifier.size(MarkBox).graphicsLayer { val s = land.value * (1f + 6f * out.value); scaleX = s; scaleY = s }) {
+        Canvas(Modifier.size(MarkBox).graphicsLayer { val s = land.value * (1f + 6f * out.value); scaleX = s; scaleY = s; alpha = flicker.value }) {
             scale(size.minDimension / VIEW, pivot = androidx.compose.ui.geometry.Offset.Zero) {
                 translate(OFFSET, OFFSET) {
                     ARCHES.forEachIndexed { i, whole ->

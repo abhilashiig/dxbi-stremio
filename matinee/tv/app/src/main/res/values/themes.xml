@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Black from the first frame: no white flash before Compose draws -->
+    <style name="Theme.Matinee" parent="@android:style/Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/matinee_black</item>
+        <item name="android:colorBackground">@color/matinee_black</item>
+        <item name="android:navigationBarColor">@color/matinee_black</item>
+        <item name="android:statusBarColor">@color/matinee_black</item>
+    </style>
+</resources>

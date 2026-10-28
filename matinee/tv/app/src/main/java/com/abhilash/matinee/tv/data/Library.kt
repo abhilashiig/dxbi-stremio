@@ -84,6 +84,12 @@ object Library {
         }
     }
 
+    suspend fun clear() = lock.withLock {
+        raw.clear()
+        file.delete()
+        publish()
+    }
+
     suspend fun setInLibrary(meta: MetaPreview, add: Boolean) = update(meta) { item, _ ->
         item.put("removed", !add).put("temp", false)
     }

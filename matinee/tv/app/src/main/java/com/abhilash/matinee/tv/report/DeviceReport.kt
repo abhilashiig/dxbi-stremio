@@ -23,7 +23,8 @@ class Section(val title: String, val lines: List<String>)
 
 // What this device can play: the facts Phase 1 (the player) is designed around.
 fun deviceReport(activity: Activity): List<Section> =
-    listOf(device(activity), display(activity), videoDecoders(), audioOutputs(activity), passthrough(activity), audioDecoders())
+    listOf(device(activity), display(activity), videoDecoders(), audioOutputs(activity), passthrough(activity), audioDecoders(),
+        Section("Matinee's own decoders", listOf(com.abhilash.matinee.tv.player.ffmpegLine())))
 
 private fun device(context: Context): Section {
     val am = context.getSystemService(ActivityManager::class.java)

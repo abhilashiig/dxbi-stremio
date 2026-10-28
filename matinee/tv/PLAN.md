@@ -32,6 +32,7 @@ Quality of experience is never traded away. When goals conflict, this order deci
 | UI | Jetpack Compose for TV (Kotlin) |
 | Player | Media3 / ExoPlayer, hardware decoders first |
 | Stremio logic | Kotlin client for the addon protocol and Stremio API. Library sync and the watched-episodes bitfield are ported from stremio-core (MIT, notice kept) |
+| Account | The user's Stremio account: addons, library, Continue Watching and watched episodes sync both ways with the official apps and dx.bi. Sign-in by QR/link code first (works for Google/Facebook accounts, no typing), email and password as a fallback. Only the auth key is stored, encrypted with the Android Keystore; never the password |
 | Torrents | None. Streams come from the user's addons and debrid services; torrent-only results (`infoHash`, no `url`) are hidden |
 | Licence | GPL-3.0-or-later, like the rest of the repo |
 

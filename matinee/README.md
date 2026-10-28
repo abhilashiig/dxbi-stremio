@@ -9,7 +9,7 @@ Native apps, separate from dx.bi: nothing here touches `app/` or `tv/`.
 
 ## Building the TV app
 
-Needs JDK 17 or 21 and the Android SDK (platform 35).
+Needs JDK 17 or 21 (Gradle 8.11 fails on newer JDKs: point JAVA_HOME at 21) and the Android SDK (platform 35).
 
 ```sh
 cd matinee/tv
@@ -33,3 +33,15 @@ base64 -i matinee-tv-release.jks | pbcopy   # paste as MATINEE_TV_KEYSTORE_B64; 
 
 Back the key up somewhere safe. Every update must be signed with the same key, or Android won't install it
 over the old version.
+
+## Device report
+
+The app currently opens on a device report: decoders (hardware or software, 4K frame rates, HDR and Dolby
+Vision profiles), display modes and HDR types, audio outputs, and which formats can be passed through to
+the TV or soundbar. Scroll with the remote. The same report goes to the log, readable over adb:
+
+```sh
+adb connect <tv-ip>            # after turning on network/ADB debugging in the TV's developer options
+adb install -r app/build/outputs/apk/debug/app-debug.apk
+adb logcat -s MatineeReport
+```

@@ -105,10 +105,10 @@ size (Coil) with prefetch. Macrobenchmark tests guard start-up and scroll jank.
 
 | # | Phase | Deliverable |
 |---|---|---|
-| 0 | Foundations | Project structure, benchmark setup, device report screen |
+| 0 | Foundations | Project structure, device report screen (done) |
 | 1 | Player lab | Plays test files/URLs with everything under Playback, checked on both devices |
 | 2 | Stremio client | Login, addons, catalogs, meta, streams, subtitles, library and Continue Watching sync |
-| 3 | UI | Home, details, stream picker, search, library, settings |
+| 3 | UI | Home, details, stream picker, search, library, settings; Macrobenchmark + baseline profiles once there are screens to measure |
 | 4 | TV integration | Watch Next, voice and global search, deep links |
 | 5 | Polish | Targets met on the Fire TV Stick |
 | → | Release `matinee-tv-v0.1.0` (beta) | |

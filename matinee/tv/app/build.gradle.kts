@@ -68,4 +68,7 @@ dependencies {
     implementation("androidx.compose.foundation:foundation")
     implementation("androidx.compose.ui:ui")
     implementation("androidx.tv:tv-material:1.0.0")
+    implementation("androidx.media3:media3-exoplayer:1.5.1")
+
+    testImplementation("junit:junit:4.13.2")
 }

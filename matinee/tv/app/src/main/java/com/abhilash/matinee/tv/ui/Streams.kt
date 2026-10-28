@@ -58,6 +58,7 @@ import com.abhilash.matinee.tv.player.Capabilities
 import com.abhilash.matinee.tv.player.PlayRequest
 import com.abhilash.matinee.tv.player.QUALITIES
 import com.abhilash.matinee.tv.player.RankedStream
+import com.abhilash.matinee.tv.player.StreamChoice
 import com.abhilash.matinee.tv.player.instantOnly
 import com.abhilash.matinee.tv.player.quality
 import com.abhilash.matinee.tv.player.rankStreams
@@ -107,6 +108,7 @@ fun StreamsScreen(route: Route.Streams) {
             subtitle = route.video?.takeIf { it.label.isNotEmpty() }?.let { "${it.label} · ${it.title}" },
             metaId = meta.id, type = meta.type, videoId = videoId, poster = meta.poster, resumeMs = route.resumeMs,
             logo = meta.logo, background = meta.background, streamText = r.stream.text,
+            alternatives = fallbacksFor(r, groups.flatMap { it.second }),
         ).intent(activity)
     )
 
@@ -239,4 +241,15 @@ private fun StreamCard(r: RankedStream, modifier: Modifier, onClick: () -> Unit)
             }
         }
     }
+}
+
+// The next-best streams after the one picked, in list order, skipping ones that look like the same file: a copy of the
+// same file from another addon usually sits on the same (possibly broken) debrid server
+fun fallbacksFor(picked: RankedStream, shown: List<RankedStream>, max: Int = 4): List<StreamChoice> {
+    fun file(r: RankedStream) = r.stream.filename?.lowercase() ?: r.tags.sizeBytes?.let { "size:${it / 50_000_000}" } ?: r.stream.url
+    val seen = mutableSetOf(file(picked))
+    return shown.dropWhile { it !== picked }.drop(1)
+        .filter { seen.add(file(it)) }
+        .take(max)
+        .map { StreamChoice(it.stream.url, it.stream.headers, it.stream.text) }
 }

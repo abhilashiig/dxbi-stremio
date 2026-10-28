@@ -27,6 +27,10 @@ import androidx.media3.common.TrackSelectionOverride
 import androidx.media3.common.Tracks
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.DefaultDataSource
+import androidx.media3.datasource.HttpDataSource
+import androidx.media3.exoplayer.source.LoadEventInfo
+import androidx.media3.exoplayer.source.MediaLoadData
+import java.io.IOException
 import androidx.media3.decoder.ffmpeg.FfmpegLibrary
 import androidx.media3.datasource.okhttp.OkHttpDataSource
 import androidx.media3.exoplayer.DecoderCounters
@@ -78,6 +82,8 @@ data class PlayRequest(
     val background: String? = null,
     // The stream's name/description/filename: says what the container may not (HDR10+, Atmos in TrueHD)
     val streamText: String? = null,
+    // The next-best other files, tried in turn when this link fails before playback starts
+    val alternatives: List<StreamChoice> = emptyList(),
 ) {
     fun meta() = if (metaId != null && type != null) MetaPreview(metaId, type, title, poster, null, null, null, null, null, emptyList()) else null
 
@@ -85,6 +91,9 @@ data class PlayRequest(
         .putExtra("url", url).putExtra("headers", HashMap(headers)).putExtra("title", title).putExtra("subtitle", subtitle)
         .putExtra("metaId", metaId).putExtra("type", type).putExtra("videoId", videoId).putExtra("poster", poster).putExtra("resumeMs", resumeMs)
         .putExtra("logo", logo).putExtra("background", background).putExtra("streamText", streamText)
+        .putParcelableArrayListExtra("alternatives", ArrayList(alternatives.map { a ->
+            Bundle().apply { putString("url", a.url); putSerializable("headers", HashMap(a.headers)); putString("text", a.text) }
+        }))
 
     companion object {
         @Suppress("UNCHECKED_CAST", "DEPRECATION")
@@ -101,9 +110,14 @@ data class PlayRequest(
             logo = i.getStringExtra("logo"),
             background = i.getStringExtra("background"),
             streamText = i.getStringExtra("streamText"),
+            alternatives = i.getParcelableArrayListExtra<Bundle>("alternatives").orEmpty().map { b ->
+                StreamChoice(b.getString("url")!!, (b.getSerializable("headers") as? HashMap<String, String>).orEmpty(), b.getString("text"))
+            },
         )
     }
 }
+
+data class StreamChoice(val url: String, val headers: Map<String, String>, val text: String?)
 
 @OptIn(UnstableApi::class)
 class PlayerActivity : ComponentActivity(), PlayerActions {
@@ -133,7 +147,9 @@ class PlayerActivity : ComponentActivity(), PlayerActions {
     private var audioPassthrough: Boolean? = null
     private var outputChannels = 0
     private val caps by lazy { Capabilities.rank(this) }
-    private val tags by lazy { streamTags(request.streamText.orEmpty()) }
+    private lateinit var stream: StreamChoice
+    private var fallbacks: List<StreamChoice> = emptyList()
+    private var tags = streamTags("")
     // Streams are huge and read once: kept out of the HTTP cache the addon calls use
     private val streamClient by lazy { Http.client.newBuilder().cache(null).build() }
     private var droppedFrames = 0
@@ -142,6 +158,9 @@ class PlayerActivity : ComponentActivity(), PlayerActions {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         request = PlayRequest.from(intent)
+        stream = StreamChoice(request.url, request.headers, request.streamText)
+        fallbacks = request.alternatives
+        tags = streamTags(stream.text.orEmpty())
         positionMs = request.resumeMs
         playerView = PlayerView(this).apply {
             useController = false
@@ -180,7 +199,7 @@ class PlayerActivity : ComponentActivity(), PlayerActions {
             ui.subtitlesLoading = true
             subtitleJob = lifecycleScope.launch {
                 Repo.subtitles(type, videoId).collect { more ->
-                    addonSubtitles.value = rankSubtitles(addonSubtitles.value + more, Settings.subtitleLanguage, Locale.getDefault().language, request.streamText.orEmpty())
+                    addonSubtitles.value = rankSubtitles(addonSubtitles.value + more, Settings.subtitleLanguage, Locale.getDefault().language, stream.text.orEmpty())
                     ui.subtitles = addonSubtitles.value
                     maybeAutoSubtitle()
                 }
@@ -245,7 +264,7 @@ class PlayerActivity : ComponentActivity(), PlayerActions {
             .setPrioritizeTimeOverSizeThresholds(false)
             .build()
 
-        val http = OkHttpDataSource.Factory(streamClient).setDefaultRequestProperties(request.headers)
+        val http = OkHttpDataSource.Factory(streamClient).setDefaultRequestProperties(stream.headers)
         return ExoPlayer.Builder(this)
             .setTrackSelector(trackSelector)
             .setLoadControl(loadControl)
@@ -262,7 +281,7 @@ class PlayerActivity : ComponentActivity(), PlayerActions {
     }
 
     private fun mediaItem() = MediaItem.Builder()
-        .setUri(request.url)
+        .setUri(stream.url)
         .setSubtitleConfigurations(sideLoaded.map { s ->
             MediaItem.SubtitleConfiguration.Builder(Uri.parse(s.url))
                 .setId("addon:${s.id}")
@@ -336,6 +355,12 @@ class PlayerActivity : ComponentActivity(), PlayerActions {
             outputChannels = channels
             audioOutput = if (isPcm(config.encoding)) "Decoded on this device to $channels-channel PCM"
             else "Passthrough (${encodingName(config.encoding)}) to your TV/receiver"
+        }
+
+        // ExoPlayer retries a 5xx several times (~15 s each on a dead CDN node); before playback, move on at the first one
+        override fun onLoadError(eventTime: AnalyticsListener.EventTime, loadEventInfo: LoadEventInfo, mediaLoadData: MediaLoadData, error: IOException, wasCanceled: Boolean) {
+            val code = (error as? HttpDataSource.InvalidResponseCodeException)?.responseCode ?: return
+            if (code >= 500 && !ui.started && fallbacks.isNotEmpty()) handler.post { tryNextStream() }
         }
 
         // A stream that can't keep up is a failure, not "high quality": say so once, so another version can be picked
@@ -426,6 +451,17 @@ class PlayerActivity : ComponentActivity(), PlayerActions {
         return (0 until group.length).firstOrNull { group.isTrackSelected(it) }?.let { group.getTrackFormat(it) }
     }
 
+    // A link that dies before the first frame (a debrid CDN node down, an expired link) is swapped for the next-best
+    // other file at once, instead of waiting out retries and showing an error
+    private fun tryNextStream(): Boolean {
+        if (ui.started || fallbacks.isEmpty()) return false
+        stream = fallbacks.first()
+        fallbacks = fallbacks.drop(1)
+        tags = streamTags(stream.text.orEmpty())
+        restart("That link didn't work, so Matinee is trying another version")
+        return true
+    }
+
     private fun handleError(error: PlaybackException) {
         val audioFailure = error.errorCode == PlaybackException.ERROR_CODE_AUDIO_TRACK_INIT_FAILED ||
             error.errorCode == PlaybackException.ERROR_CODE_AUDIO_TRACK_WRITE_FAILED
@@ -434,6 +470,8 @@ class PlayerActivity : ComponentActivity(), PlayerActions {
             restart("Your audio device didn't take this format, so Matinee decodes it instead")
             return
         }
+        val sourceFailure = error.errorCode in PlaybackException.ERROR_CODE_IO_UNSPECIFIED until PlaybackException.ERROR_CODE_PARSING_CONTAINER_MALFORMED
+        if (sourceFailure && tryNextStream()) return
         ui.error = when (error.errorCode) {
             PlaybackException.ERROR_CODE_DECODER_INIT_FAILED, PlaybackException.ERROR_CODE_DECODING_FAILED,
             PlaybackException.ERROR_CODE_DECODING_FORMAT_UNSUPPORTED, PlaybackException.ERROR_CODE_DECODING_FORMAT_EXCEEDS_CAPABILITIES ->

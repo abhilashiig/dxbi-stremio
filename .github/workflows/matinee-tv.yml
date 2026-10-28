@@ -1,0 +1,77 @@
+name: Matinee TV
+
+# Pushes that touch matinee/tv build a debug APK, as a check. Publishing a release tagged
+# matinee-tv-v<version> (e.g. matinee-tv-v0.1.0) builds the signed APK and attaches it as matinee-tv.apk.
+#
+# Release builds are signed with Matinee TV's key, kept in the repository's secrets:
+#   MATINEE_TV_KEYSTORE_B64       the keystore, base64-encoded
+#   MATINEE_TV_KEYSTORE_PASSWORD  its password (the key uses the same one; alias matinee-tv)
+on:
+  push:
+    paths:
+      - "matinee/tv/**"
+      - ".github/workflows/matinee-tv.yml"
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apk:
+    if: github.event_name != 'release' || startsWith(github.event.release.tag_name, 'matinee-tv-v')
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: matinee/tv
+    env:
+      RELEASE: ${{ github.event_name == 'release' }}
+      TAG: ${{ github.event.release.tag_name }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      # dx.bi's download links and update checks follow GitHub's "latest release", so that stays on dx.bi
+      - name: Keep dx.bi as the latest release
+        if: env.RELEASE == 'true'
+        working-directory: .
+        run: |
+          tag=$(gh release list -R "$GITHUB_REPOSITORY" --exclude-drafts --exclude-pre-releases --limit 100 --json tagName -q '[.[].tagName | select(startswith("v"))][0]')
+          if [ -n "$tag" ]; then gh release edit "$tag" -R "$GITHUB_REPOSITORY" --latest; fi
+
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: gradle
+
+      - name: Signing key
+        if: env.RELEASE == 'true'
+        run: |
+          if [ -z "${{ secrets.MATINEE_TV_KEYSTORE_B64 }}" ]; then echo "::error::MATINEE_TV_KEYSTORE_B64 isn't set, so the release APK can't be signed."; exit 1; fi
+          echo "${{ secrets.MATINEE_TV_KEYSTORE_B64 }}" | base64 -d > "$RUNNER_TEMP/matinee-tv.jks"
+
+      # GitHub's Ubuntu runners come with the Android SDK (ANDROID_HOME); Gradle fetches what's missing
+      - name: Build (debug)
+        if: env.RELEASE != 'true'
+        run: ./gradlew assembleDebug --no-daemon && cp app/build/outputs/apk/debug/app-debug.apk matinee-tv-debug.apk
+
+      - name: Build (release)
+        if: env.RELEASE == 'true'
+        run: ./gradlew assembleRelease --no-daemon -PmatineeVersion="${TAG#matinee-tv-v}" && cp app/build/outputs/apk/release/app-release.apk matinee-tv.apk
+        env:
+          MATINEE_TV_KEYSTORE: ${{ runner.temp }}/matinee-tv.jks
+          MATINEE_TV_KEYSTORE_PASSWORD: ${{ secrets.MATINEE_TV_KEYSTORE_PASSWORD }}
+          MATINEE_TV_KEY_ALIAS: matinee-tv
+          MATINEE_TV_KEY_PASSWORD: ${{ secrets.MATINEE_TV_KEYSTORE_PASSWORD }}
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: matinee-tv
+          path: matinee/tv/matinee-tv*.apk
+          if-no-files-found: error
+
+      - name: Attach to the release
+        if: env.RELEASE == 'true'
+        run: gh release upload "$TAG" matinee-tv.apk --clobber

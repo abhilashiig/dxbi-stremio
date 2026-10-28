@@ -12,6 +12,8 @@ permissions:
 
 jobs:
   build:
+    # dx.bi releases are tagged v<version>; other apps in this repo have their own tags
+    if: github.event_name != 'release' || startsWith(github.event.release.tag_name, 'v')
     name: ${{ matrix.target }} ${{ matrix.arch }}
     runs-on: ${{ matrix.os }}
     strategy:

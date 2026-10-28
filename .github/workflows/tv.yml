@@ -18,6 +18,8 @@ permissions:
 
 jobs:
   apk:
+    # dx.bi releases are tagged v<version>; other apps in this repo have their own tags
+    if: github.event_name != 'release' || startsWith(github.event.release.tag_name, 'v')
     runs-on: ubuntu-latest
     defaults:
       run:

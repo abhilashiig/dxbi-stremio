@@ -225,13 +225,15 @@ fun InputField(
     onAction: () -> Unit = {},
 ) {
     var editing by remember { mutableStateOf(false) }
+    // A new field reports "unfocused" before it gets focus: only leaving after having had focus ends editing
+    var hadFocus by remember { mutableStateOf(false) }
     val focusManager = LocalFocusManager.current
     val keyboard = LocalSoftwareKeyboardController.current
     val field = remember { FocusRequester() }
     val shape = RoundedCornerShape(8.dp)
     if (!editing) {
         Surface(
-            onClick = { editing = true },
+            onClick = { hadFocus = false; editing = true },
             modifier = modifier,
             shape = ClickableSurfaceDefaults.shape(shape),
             colors = ClickableSurfaceDefaults.colors(containerColor = Color(0xFF1A1A1A), focusedContainerColor = Color(0xFF2A2A2A), contentColor = Color.White, focusedContentColor = Color.White),
@@ -259,7 +261,7 @@ fun InputField(
         }),
         modifier = modifier
             .focusRequester(field)
-            .onFocusChanged { if (!it.isFocused && !it.hasFocus) editing = false }
+            .onFocusChanged { if (it.hasFocus) hadFocus = true else if (hadFocus) editing = false }
             .onPreviewKeyEvent { e ->
                 if (e.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
                 when (e.nativeKeyEvent.keyCode) {

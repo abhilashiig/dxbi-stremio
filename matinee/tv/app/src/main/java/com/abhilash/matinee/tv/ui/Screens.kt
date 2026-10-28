@@ -73,7 +73,14 @@ fun SearchScreen() {
         if (query.trim().length < 2) { results = emptyList(); return@LaunchedEffect }
         delay(450)
         searching = true
-        results = runCatching { Repo.search(query.trim()) }.getOrDefault(emptyList())
+        val found = sortedMapOf<Int, SearchRow>()
+        results = emptyList()
+        // Rows with a title that actually matches come first; within that, addon order
+        val q = query.trim()
+        Repo.search(q).collect { (i, row) ->
+            found[i] = row
+            results = found.entries.sortedBy { (k, r) -> (if (r.items.any { it.name.contains(q, true) }) 0 else 10_000) + k }.map { it.value }
+        }
         searching = false
     }
     Column(Modifier.fillMaxSize().background(Color.Black).padding(top = 40.dp)) {

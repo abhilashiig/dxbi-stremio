@@ -124,11 +124,15 @@ object Repo {
         }
     }
 
-    suspend fun search(query: String): List<SearchRow> = coroutineScope {
-        _addons.value.flatMap { a -> a.catalogs.filter { it.searchable } }.map { c ->
-            async {
-                runCatching { SearchRow(c.title, catalogJson(c, listOf("search" to query)).mapObjects { MetaPreview.from(it, c.type) }) }.getOrNull()
+    // Each catalog's results as they arrive, tagged with its place among the catalogs so rows keep a stable order
+    fun search(query: String): Flow<Pair<Int, SearchRow>> = channelFlow {
+        _addons.value.flatMap { a -> a.catalogs.filter { it.searchable } }.forEachIndexed { i, c ->
+            launch {
+                val row = withTimeoutOrNull(8_000) {
+                    runCatching { SearchRow(c.title, catalogJson(c, listOf("search" to query)).mapObjects { MetaPreview.from(it, c.type) }) }.getOrNull()
+                }
+                if (row != null && row.items.isNotEmpty()) send(i to row)
             }
-        }.awaitAll().filterNotNull().filter { it.items.isNotEmpty() }
+        }
     }
 }

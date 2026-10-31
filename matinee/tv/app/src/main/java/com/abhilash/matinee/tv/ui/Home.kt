@@ -290,7 +290,8 @@ private fun Billboard(
                     }
                 }
             }
-            Spacer(Modifier.height(4.dp))
+            // As low as the buttons go: any lower and focusing them would scroll the page past the top (see the pivot)
+            Spacer(Modifier.height(24.dp))
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.onFocusChanged { if (it.hasFocus) { last.requester = play; onFocus() } }) {
                 Button(
                     onClick = onPlay, modifier = Modifier.focusRequester(play),

@@ -79,6 +79,22 @@ import com.abhilash.matinee.tv.data.MetaPreview
 import com.abhilash.matinee.tv.data.Repo
 import com.abhilash.matinee.tv.data.typeLabel
 import kotlinx.coroutines.delay
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.spring
+import androidx.compose.foundation.focusable
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
+import androidx.compose.ui.zIndex
+import kotlin.math.PI
+import kotlin.math.abs
+import kotlin.math.sin
 
 private const val BILLBOARD = "billboard"
 private val BillboardHeight = 400.dp
@@ -100,8 +116,9 @@ fun HomeScreen(type: String? = null) {
     val context = LocalPlatformContext.current
     val featuredList = remember(rows) {
         val top = rows.firstOrNull()?.items.orEmpty()
-        top.filter { it.background != null }.take(6).ifEmpty { top.take(1) }
+        top.filter { it.background != null && it.poster != null }.take(6).ifEmpty { top.take(1) }
     }
+    // Only ever counts up, so the hand of cards always turns the same way round, including from the last to the first
     var featuredIndex by rememberSaveable(type) { mutableIntStateOf(0) }
     var featured by remember { mutableStateOf<MetaPreview?>(null) }
     LaunchedEffect(featuredList, featuredIndex) {
@@ -116,15 +133,16 @@ fun HomeScreen(type: String? = null) {
     var focusId by rememberSaveable { mutableStateOf<String?>(null) }
     // Where focus was when this visit began (coming back from a title), before anything on the page takes it
     val entryFocus = remember { focusId }
-    var inBillboard by remember { mutableStateOf(true) }
+    // Saved so that coming back from a title, the page underneath is already in the state it was left in
+    var inBillboard by rememberSaveable { mutableStateOf(true) }
     var focused by remember { mutableStateOf<MetaPreview?>(null) }
     var hero by remember { mutableStateOf<MetaPreview?>(null) }
 
     // Next title every 9 s while the billboard is in view (the timer restarts after each change)
-    LaunchedEffect(inBillboard, featuredList, featured?.id) {
+    LaunchedEffect(inBillboard, featuredList, featuredIndex, featured?.id) {
         if (!inBillboard || featuredList.size < 2) return@LaunchedEffect
         delay(9_000)
-        featuredIndex = (featuredIndex + 1) % featuredList.size
+        featuredIndex++
     }
 
     // The strip follows focus after a short pause, so fast scrolling doesn't churn through backdrops. It changes
@@ -155,9 +173,10 @@ fun HomeScreen(type: String? = null) {
             // Rows scrolled above the focused one would draw over the info strip, so the list fades out behind it
             val cut by animateFloatAsState(if (inBillboard) 0f else 1f, tween(250), label = "cut")
             val listModifier = Modifier.fillMaxSize()
-                .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
+                .graphicsLayer { compositingStrategy = if (cut > 0f) CompositingStrategy.Offscreen else CompositingStrategy.Auto }
                 .drawWithContent {
                     drawContent()
+                    if (cut == 0f) return@drawWithContent
                     val h = HeroHeight.toPx()
                     val end = h + 6.dp.toPx()
                     drawRect(Brush.verticalGradient(h / end to Color.Black.copy(alpha = cut), 1f to Color.Transparent, endY = end),
@@ -169,8 +188,9 @@ fun HomeScreen(type: String? = null) {
                         item(BILLBOARD) {
                             val f = featured ?: featuredList.first()
                             Billboard(
-                                f, featuredList.size, featuredIndex % featuredList.size, visible = inBillboard, play = play,
+                                f, featuredList, featuredIndex, visible = inBillboard, play = play,
                                 onFocus = { inBillboard = true; focusId = BILLBOARD },
+                                onNext = { featuredIndex++ },
                                 onPlay = {
                                     if (f.type == "movie") nav.push(Route.Streams(f, null, library.firstOrNull { it.id == f.id }?.timeOffset ?: 0))
                                     else nav.push(Route.Details(f.type, f.id))
@@ -182,7 +202,7 @@ fun HomeScreen(type: String? = null) {
                     if (continueWatching.isNotEmpty()) item("cw") {
                         CompositionLocalProvider(LocalBringIntoViewSpec provides rememberPivot()) {
                             PosterRow(
-                                "Continue Watching", continueWatchingPreviews, restoreKey, "cw",
+                                "Continue Watching", continueWatchingPreviews, restoreKey, "cw", Modifier.dimUnlessFocused(!inBillboard),
                                 progress = { progress[it.id] },
                                 onFocus = { key, meta -> inBillboard = false; focusId = key; focused = meta },
                                 onClick = { nav.push(Route.Details(it.type, it.id)) },
@@ -192,7 +212,7 @@ fun HomeScreen(type: String? = null) {
                     items(rows, key = { it.key }) { row ->
                         CompositionLocalProvider(LocalBringIntoViewSpec provides rememberPivot()) {
                             PosterRow(
-                                row.title, row.items, restoreKey, row.key,
+                                row.title, row.items, restoreKey, row.key, Modifier.dimUnlessFocused(!inBillboard),
                                 onFocus = { key, meta -> inBillboard = false; focusId = key; focused = meta },
                                 onClick = { nav.push(Route.Details(it.type, it.id)) },
                             )
@@ -232,70 +252,147 @@ private fun Backdrop(url: String?) {
 // block changes as the billboard cycles; the buttons stay put and keep focus.
 @Composable
 private fun Billboard(
-    meta: MetaPreview, count: Int, index: Int, visible: Boolean, play: FocusRequester,
-    onFocus: () -> Unit, onPlay: () -> Unit, onInfo: () -> Unit,
+    meta: MetaPreview, deck: List<MetaPreview>, position: Int, visible: Boolean, play: FocusRequester,
+    onFocus: () -> Unit, onNext: () -> Unit, onPlay: () -> Unit, onInfo: () -> Unit,
 ) {
     val alpha by animateFloatAsState(if (visible) 1f else 0f, tween(250), label = "billboard")
-    Column(Modifier.fillMaxWidth().height(BillboardHeight).graphicsLayer { this.alpha = alpha }.padding(start = Edge, top = 48.dp)) {
-        AnimatedContent(
-            meta,
-            transitionSpec = {
-                ((fadeIn(tween(500, delayMillis = 150)) + slideInHorizontally(tween(500, delayMillis = 150)) { it / 24 }) togetherWith
-                    fadeOut(tween(220))).using(SizeTransform(clip = false))
-            },
-            contentKey = { it.id },
-            label = "billboard",
-        ) { m ->
-            Column(Modifier.height(218.dp)) {
-                Text(if (m.type == "movie") "FILM" else typeLabel(m.type).removeSuffix("s").uppercase(),
-                    fontSize = 12.sp, fontWeight = FontWeight.Bold, letterSpacing = 4.sp, color = Gold)
-                Spacer(Modifier.height(8.dp))
-                if (m.logo != null) {
-                    AsyncImage(m.logo, m.name, contentScale = ContentScale.Fit, alignment = Alignment.CenterStart,
-                        modifier = Modifier.heightIn(max = 90.dp).widthIn(max = 380.dp))
-                } else {
-                    Text(m.name, fontSize = 36.sp, fontWeight = FontWeight.Black, color = Color.White, maxLines = 2, overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.width(480.dp))
-                }
-                Spacer(Modifier.height(12.dp))
-                m.description?.let {
-                    Text(it, fontSize = 14.sp, color = Color(0xFFE0E0E0), maxLines = 3, overflow = TextOverflow.Ellipsis, lineHeight = 19.sp,
-                        modifier = Modifier.width(440.dp))
-                }
-            }
-        }
-        Spacer(Modifier.height(4.dp))
-        val last = LocalLastFocus.current
-        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.onFocusChanged { if (it.hasFocus) { last.requester = play; onFocus() } }) {
-            Button(
-                onClick = onPlay, modifier = Modifier.focusRequester(play),
-                colors = ButtonDefaults.colors(containerColor = Color(0xFFE8E8E8), contentColor = Color.Black, focusedContainerColor = Color.White, focusedContentColor = Color.Black),
-            ) {
-                Icon(Icons.Play, null, Modifier.size(20.dp))
-                Spacer(Modifier.width(8.dp))
-                Text("Play", fontWeight = FontWeight.Bold)
-            }
-            Spacer(Modifier.width(12.dp))
-            Button(
-                onClick = onInfo,
-                colors = ButtonDefaults.colors(containerColor = Color(0x66808080), contentColor = Color.White, focusedContainerColor = Color.White, focusedContentColor = Color.Black),
-            ) {
-                Icon(Icons.Info, null, Modifier.size(20.dp))
-                Spacer(Modifier.width(8.dp))
-                Text("More Info", fontWeight = FontWeight.Bold)
-            }
-            if (count > 1) {
-                Spacer(Modifier.width(28.dp))
-                // Where the billboard is in its cycle
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    repeat(count) { i ->
-                        val width by animateDpAsState(if (i == index) 22.dp else 6.dp, tween(350), label = "dot")
-                        Box(Modifier.size(width, 6.dp).background(if (i == index) Gold else Color(0x66FFFFFF), RoundedCornerShape(3.dp)))
+    val last = LocalLastFocus.current
+    Box(Modifier.fillMaxWidth().height(BillboardHeight).graphicsLayer { this.alpha = alpha }) {
+        if (deck.size > 1) Hand(
+            deck, position, Modifier.align(Alignment.TopEnd).padding(top = 34.dp, end = 24.dp),
+            onFocus = { last.requester = play; onFocus() }, onNext = onNext, onOpen = onInfo,
+        )
+        Column(Modifier.padding(start = Edge, top = 48.dp)) {
+            AnimatedContent(
+                meta,
+                transitionSpec = {
+                    ((fadeIn(tween(500, delayMillis = 150)) + slideInHorizontally(tween(500, delayMillis = 150)) { it / 24 }) togetherWith
+                        fadeOut(tween(220))).using(SizeTransform(clip = false))
+                },
+                contentKey = { it.id },
+                label = "billboard",
+            ) { m ->
+                Column(Modifier.height(218.dp)) {
+                    Text(if (m.type == "movie") "FILM" else typeLabel(m.type).removeSuffix("s").uppercase(),
+                        fontSize = 12.sp, fontWeight = FontWeight.Bold, letterSpacing = 4.sp, color = Gold)
+                    Spacer(Modifier.height(8.dp))
+                    if (m.logo != null) {
+                        AsyncImage(m.logo, m.name, contentScale = ContentScale.Fit, alignment = Alignment.CenterStart,
+                            modifier = Modifier.heightIn(max = 90.dp).widthIn(max = 380.dp))
+                    } else {
+                        Text(m.name, fontSize = 36.sp, fontWeight = FontWeight.Black, color = Color.White, maxLines = 2, overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.width(400.dp))
                     }
+                    Spacer(Modifier.height(12.dp))
+                    m.description?.let {
+                        Text(it, fontSize = 14.sp, color = Color(0xFFE0E0E0), maxLines = 3, overflow = TextOverflow.Ellipsis, lineHeight = 19.sp,
+                            modifier = Modifier.width(400.dp))
+                    }
+                }
+            }
+            Spacer(Modifier.height(4.dp))
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.onFocusChanged { if (it.hasFocus) { last.requester = play; onFocus() } }) {
+                Button(
+                    onClick = onPlay, modifier = Modifier.focusRequester(play),
+                    colors = ButtonDefaults.colors(containerColor = Color(0xFFE8E8E8), contentColor = Color.Black, focusedContainerColor = Color.White, focusedContentColor = Color.Black),
+                ) {
+                    Icon(Icons.Play, null, Modifier.size(20.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text("Play", fontWeight = FontWeight.Bold)
+                }
+                Spacer(Modifier.width(12.dp))
+                Button(
+                    onClick = onInfo,
+                    colors = ButtonDefaults.colors(containerColor = Color(0x66808080), contentColor = Color.White, focusedContainerColor = Color.White, focusedContentColor = Color.Black),
+                ) {
+                    Icon(Icons.Info, null, Modifier.size(20.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text("More Info", fontWeight = FontWeight.Bold)
                 }
             }
         }
     }
+}
+
+private val CardWidth = 170.dp
+private val CardHeight = 255.dp
+// Each card turns about a point well below the hand, like cards held in one hand, so turning alone fans them out
+private const val Pivot = 2.6f
+private const val FanDegrees = 7f
+// How far apart neighbouring cards end up
+private val Spread = CardHeight * (Pivot - 0.5f) * sin(FanDegrees * PI.toFloat() / 180f)
+
+// Where card i sits in the hand at a given position: 0 the centre, negative to the left, wrapping round the deck
+private fun slot(i: Int, position: Float, n: Int): Float {
+    val s = ((i - position) % n + n) % n
+    return if (s >= n / 2f) s - n else s
+}
+
+// The featured titles as a hand of cards, the current one in the centre. Right flicks it aside and brings up the next;
+// every card rides the same arc, so a move only changes layer values, never layout.
+@Composable
+private fun Hand(deck: List<MetaPreview>, position: Int, modifier: Modifier, onFocus: () -> Unit, onNext: () -> Unit, onOpen: () -> Unit) {
+    val n = deck.size
+    val turn = remember { Animatable(position.toFloat()) }
+    LaunchedEffect(position) { turn.animateTo(position.toFloat(), spring(dampingRatio = 0.72f, stiffness = 120f)) }
+    // Dealt once per visit: coming back from a title finds the hand already out
+    var dealt by rememberSaveable { mutableStateOf(false) }
+    val deal = remember { Animatable(if (dealt) 1f else 0f) }
+    LaunchedEffect(Unit) { deal.animateTo(1f, tween(1200, easing = FastOutSlowInEasing)); dealt = true }
+    var focused by remember { mutableStateOf(false) }
+    Box(
+        modifier.size(CardWidth + Spread * 4, CardHeight + 48.dp)
+            .onFocusChanged { focused = it.isFocused; if (it.isFocused) onFocus() }
+            .onPreviewKeyEvent {
+                if (it.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+                when (it.key) {
+                    Key.DirectionRight -> { onNext(); true }
+                    Key.DirectionCenter, Key.Enter, Key.NumPadEnter -> { onOpen(); true }
+                    else -> false
+                }
+            }
+            .focusable(),
+        contentAlignment = Alignment.TopCenter,
+    ) {
+        deck.forEachIndexed { i, m ->
+            // Stacking only changes when a card crosses the halfway point, so moves don't recompose every frame
+            val depth by remember(n) { derivedStateOf { (abs(slot(i, turn.value, n)) + 0.5f).toInt() } }
+            AsyncImage(
+                m.poster, m.name, contentScale = ContentScale.Crop,
+                modifier = Modifier.zIndex(-depth.toFloat()).size(CardWidth, CardHeight)
+                    .graphicsLayer {
+                        val s = slot(i, turn.value, n)
+                        val a = abs(s)
+                        // The centre card lands first and the rest fan out after it
+                        val landed = ((deal.value - a * 0.12f) / 0.76f).coerceIn(0f, 1f)
+                        // The card leaving the centre lifts as it goes, like one slid off the front of the hand
+                        val lift = if (s < 0f && s > -1f) sin(PI.toFloat() * -s) else 0f
+                        transformOrigin = TransformOrigin(0.5f, Pivot)
+                        rotationZ = s * FanDegrees * landed
+                        translationY = (1f - landed) * 220.dp.toPx() - lift * 22.dp.toPx()
+                        val scale = 1f - 0.05f * a.coerceAtMost(2f) + lift * 0.04f
+                        scaleX = scale; scaleY = scale
+                        alpha = (3f - a).coerceIn(0f, 1f) * landed
+                        shape = RoundedCornerShape(10.dp)
+                        clip = true
+                    }
+                    .drawWithContent {
+                        drawContent()
+                        val a = abs(slot(i, turn.value, n))
+                        drawRect(Color.Black.copy(alpha = 0.3f * a.coerceAtMost(2f)))
+                        if (focused && a < 0.5f) drawRoundRect(Color.White, cornerRadius = CornerRadius(10.dp.toPx()), style = Stroke(3.dp.toPx()))
+                    },
+            )
+        }
+    }
+}
+
+// Rows other than the focused one sit back. A scrim rather than alpha, so no row needs its own offscreen buffer.
+@Composable
+private fun Modifier.dimUnlessFocused(dim: Boolean): Modifier {
+    var focused by remember { mutableStateOf(false) }
+    val scrim by animateFloatAsState(if (dim && !focused) 0.5f else 0f, tween(300), label = "dim")
+    return onFocusChanged { focused = it.hasFocus }.drawWithContent { drawContent(); if (scrim > 0f) drawRect(Color.Black.copy(alpha = scrim)) }
 }
 
 // What the focused card is, above the rows

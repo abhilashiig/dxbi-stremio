@@ -1,6 +1,13 @@
 package com.abhilash.matinee.tv.ui
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.core.LinearOutSlowInEasing
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.togetherWith
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Spring
@@ -116,9 +123,22 @@ fun MatineeApp(deepLink: StateFlow<Route?>) {
     LaunchedEffect(link) { link?.let { nav.push(it) } }
 
     CompositionLocalProvider(LocalNav provides nav) {
-        val top = stack.last()
-        holder.SaveableStateProvider("${stack.lastIndex}:$top") {
-            FadeIn {
+        // Going in, the new page rises over the old one, which stays whole underneath so there's no dip to black between
+        // two backdrops. Going back, the page sinks away to reveal the one below.
+        AnimatedContent(
+            stack.lastIndex to stack.last(),
+            transitionSpec = {
+                if (targetState.first >= initialState.first) {
+                    (fadeIn(tween(320)) + scaleIn(tween(320, easing = LinearOutSlowInEasing), initialScale = 0.96f)) togetherWith
+                        ExitTransition.KeepUntilTransitionsFinished
+                } else {
+                    (EnterTransition.None togetherWith (fadeOut(tween(240)) + scaleOut(tween(240), targetScale = 0.96f)))
+                        .apply { targetContentZIndex = -1f }
+                }
+            },
+            label = "nav",
+        ) { (index, top) ->
+            holder.SaveableStateProvider("$index:$top") {
                 when (top) {
                     Route.Main -> MainScreen()
                     is Route.Details -> DetailsScreen(top.type, top.id)

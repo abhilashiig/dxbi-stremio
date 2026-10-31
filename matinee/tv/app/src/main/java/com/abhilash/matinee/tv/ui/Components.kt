@@ -140,11 +140,12 @@ fun PosterRow(
     items: List<MetaPreview>,
     focusId: String?,
     rowKey: String,
+    modifier: Modifier = Modifier,
     progress: (MetaPreview) -> Float? = { null },
     onFocus: (String, MetaPreview) -> Unit,
     onClick: (MetaPreview) -> Unit,
 ) {
-    Column(Modifier.padding(bottom = 6.dp)) {
+    Column(modifier.padding(bottom = 6.dp)) {
         Text(title, fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = Color.White, modifier = Modifier.padding(start = Edge))
         // Vertical room so a focused card's scale and glow aren't clipped by the row
         LazyRow(

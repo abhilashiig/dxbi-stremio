@@ -50,12 +50,16 @@ import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
@@ -148,8 +152,19 @@ fun HomeScreen(type: String? = null) {
             }
             val play = remember { FocusRequester() }
             val list = rememberLazyListState()
+            // Rows scrolled above the focused one would draw over the info strip, so the list fades out behind it
+            val cut by animateFloatAsState(if (inBillboard) 0f else 1f, tween(250), label = "cut")
+            val listModifier = Modifier.fillMaxSize()
+                .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
+                .drawWithContent {
+                    drawContent()
+                    val h = HeroHeight.toPx()
+                    val end = h + 6.dp.toPx()
+                    drawRect(Brush.verticalGradient(h / end to Color.Black.copy(alpha = cut), 1f to Color.Transparent, endY = end),
+                        size = Size(size.width, end), blendMode = BlendMode.DstOut)
+                }
             CompositionLocalProvider(LocalBringIntoViewSpec provides rememberPivot(HeroHeight + 40.dp)) {
-                LazyColumn(state = list, modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 320.dp)) {
+                LazyColumn(state = list, modifier = listModifier, contentPadding = PaddingValues(bottom = 320.dp)) {
                     if (featuredList.isNotEmpty()) {
                         item(BILLBOARD) {
                             val f = featured ?: featuredList.first()

@@ -173,7 +173,7 @@ fun MainScreen() {
 
     Box(Modifier.fillMaxSize().background(Color.Black)) {
         // Entering the page (Right from the rail) goes back to whatever had focus there, not what is geometrically nearest
-        // Clipped: a zooming backdrop must never spill under the rail, where a closing rail could uncover it
+        // Clipped: nothing on a page may spill under the rail, where a closing rail could uncover it
         Box(Modifier.fillMaxSize().padding(start = RailWidth).clipToBounds().focusRequester(content).focusGroup()) {
             key(tab) {
               CompositionLocalProvider(LocalLastFocus provides last) {

@@ -51,6 +51,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.focus.FocusRequester
@@ -138,10 +139,14 @@ fun HomeScreen(type: String? = null) {
     var focused by remember { mutableStateOf<MetaPreview?>(null) }
     var hero by remember { mutableStateOf<MetaPreview?>(null) }
 
-    // Next title every 9 s while the billboard is in view (the timer restarts after each change)
-    LaunchedEffect(inBillboard, featuredList, featuredIndex, featured?.id) {
-        if (!inBillboard || featuredList.size < 2) return@LaunchedEffect
+    // Next title every 9 s while the billboard is in view (the timer restarts after each change). It rests after a
+    // couple of idle minutes, since each change redraws the whole screen and kept the TV's CPU at ~30% while unattended;
+    // any key starts it again.
+    var idleTurns by remember { mutableIntStateOf(0) }
+    LaunchedEffect(inBillboard, featuredList, featuredIndex, featured?.id, idleTurns == 0) {
+        if (!inBillboard || featuredList.size < 2 || idleTurns >= 12) return@LaunchedEffect
         delay(9_000)
+        idleTurns++
         featuredIndex++
     }
 
@@ -157,7 +162,8 @@ fun HomeScreen(type: String? = null) {
     }
 
     val shown = if (inBillboard || hero == null) featured else hero
-    Box(Modifier.fillMaxSize().background(Color.Black)) {
+    // No background of its own: the app shell is already black underneath, and every full-screen fill costs GPU time
+    Box(Modifier.fillMaxSize().onPreviewKeyEvent { idleTurns = 0; false }) {
         Backdrop(shown?.background)
         AnimatedVisibility(!inBillboard, enter = fadeIn(tween(300)), exit = fadeOut(tween(200))) { InfoStrip(hero) }
         if (rows.isEmpty() && continueWatching.isEmpty()) {
@@ -170,18 +176,13 @@ fun HomeScreen(type: String? = null) {
             }
             val play = remember { FocusRequester() }
             val list = rememberLazyListState()
-            // Rows scrolled above the focused one would draw over the info strip, so the list fades out behind it
+            // Rows scrolled above the focused one would draw over the info strip, so the list is clipped below it. A clip
+            // rather than a fade mask: a mask needs the whole list drawn offscreen first, two extra full-screen passes.
             val cut by animateFloatAsState(if (inBillboard) 0f else 1f, tween(250), label = "cut")
-            val listModifier = Modifier.fillMaxSize()
-                .graphicsLayer { compositingStrategy = if (cut > 0f) CompositingStrategy.Offscreen else CompositingStrategy.Auto }
-                .drawWithContent {
-                    drawContent()
-                    if (cut == 0f) return@drawWithContent
-                    val h = HeroHeight.toPx()
-                    val end = h + 6.dp.toPx()
-                    drawRect(Brush.verticalGradient(h / end to Color.Black.copy(alpha = cut), 1f to Color.Transparent, endY = end),
-                        size = Size(size.width, end), blendMode = BlendMode.DstOut)
-                }
+            val listModifier = Modifier.fillMaxSize().drawWithContent {
+                // Down to where the focused row begins (the pivot parks its cards at HeroHeight + 40 dp, its title above them)
+                clipRect(top = (HeroHeight + 8.dp).toPx() * cut) { this@drawWithContent.drawContent() }
+            }
             CompositionLocalProvider(LocalBringIntoViewSpec provides rememberPivot(HeroHeight + 40.dp)) {
                 LazyColumn(state = list, modifier = listModifier, contentPadding = PaddingValues(bottom = 320.dp)) {
                     if (featuredList.isNotEmpty()) {
@@ -233,19 +234,17 @@ fun HomeScreen(type: String? = null) {
     }
 }
 
-// Full-bleed artwork behind the page: each new backdrop crossfades in and settles with a slow push-out
+// Full-bleed artwork behind the page: each new backdrop crossfades in
 @Composable
 private fun Backdrop(url: String?) {
     Crossfade(url, Modifier.fillMaxSize().clipToBounds(), tween(700), label = "backdrop") { u ->
-        if (u != null) {
-            val zoom = remember { Animatable(1.05f) }
-            LaunchedEffect(Unit) { zoom.animateTo(1f, tween(1600, easing = LinearOutSlowInEasing)) }
-            AsyncImage(u, null, contentScale = ContentScale.Crop, alignment = Alignment.CenterEnd,
-                modifier = Modifier.fillMaxSize().graphicsLayer { scaleX = zoom.value; scaleY = zoom.value })
-        }
+        if (u != null) AsyncImage(u, null, contentScale = ContentScale.Crop, alignment = Alignment.CenterEnd, modifier = Modifier.fillMaxSize())
     }
-    Box(Modifier.fillMaxSize().background(Brush.horizontalGradient(0f to Color.Black, 0.4f to Color(0xB3000000), 0.75f to Color.Transparent)))
-    Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0.45f to Color.Transparent, 0.85f to Color(0xE6000000), 1f to Color.Black)))
+    // Each shade covers only where it isn't clear: transparent pixels still cost a full blend on the GPU
+    Box(Modifier.fillMaxHeight().fillMaxWidth(0.75f).background(Brush.horizontalGradient(0f to Color.Black, 0.53f to Color(0xB3000000), 1f to Color.Transparent)))
+    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.BottomStart) {
+        Box(Modifier.fillMaxWidth().fillMaxHeight(0.55f).background(Brush.verticalGradient(0f to Color.Transparent, 0.73f to Color(0xE6000000), 1f to Color.Black)))
+    }
 }
 
 // The buttons sit within the top HeroHeight, so focusing them scrolls the page back to the very top. Only the title

@@ -1,5 +1,9 @@
 package com.abhilash.matinee.tv.ui
 
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Shape
+import androidx.tv.material3.ButtonDefaults
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
@@ -95,6 +99,41 @@ val Gold = Color(0xFFF2B441)
 val Muted = Color(0xFFA8A8A8)
 val Panel = Color(0xFF161616)
 val Edge = 48.dp
+
+// Liquid glass, kept subtle and without blur: blur costs too much GPU on TV chips, and the player's video sits on its own
+// surface that nothing in the app can blur. A faint fill plus a hairline rim that catches the light at the top-left
+// reads as glass over artwork, video and plain black alike.
+object Glass {
+    // Light glass for buttons and pills; focus still turns them solid white
+    val Fill = Color(0x24FFFFFF)
+    // Dark glass for panels and rows that carry text over artwork or video
+    val Dark = Color(0xB3141414)
+    val DarkFocused = Color(0xD92A2A2A)
+    val Rim = Brush.linearGradient(0f to Color(0x61FFFFFF), 0.45f to Color(0x0FFFFFFF), 1f to Color(0x24FFFFFF))
+    val Sheen = Brush.verticalGradient(listOf(Color(0x12FFFFFF), Color.Transparent))
+}
+
+fun Modifier.glass(shape: Shape, fill: Color = Glass.Dark) =
+    background(fill, shape).background(Glass.Sheen, shape).border(1.dp, Glass.Rim, shape)
+
+fun glassBorder(shape: Shape) = Border(BorderStroke(1.dp, Glass.Rim), shape = shape)
+
+@Composable
+fun glassButtonColors() = ButtonDefaults.colors(
+    containerColor = Glass.Fill, contentColor = Color.White, focusedContainerColor = Color.White, focusedContentColor = Color.Black,
+)
+
+@Composable
+fun glassButtonBorder() = ButtonDefaults.border(border = glassBorder(CircleShape), focusedBorder = Border.None)
+
+// Rows of dark glass, gold-edged when focused
+@Composable
+fun glassRowColors() = ClickableSurfaceDefaults.colors(
+    containerColor = Glass.Dark, focusedContainerColor = Glass.DarkFocused, contentColor = Color.White, focusedContentColor = Color.White,
+)
+
+@Composable
+fun glassRowBorder(shape: Shape) = ClickableSurfaceDefaults.border(border = glassBorder(shape), focusedBorder = Border(BorderStroke(2.dp, Gold), shape = shape))
 
 @Composable
 fun MatineeTheme(content: @Composable () -> Unit) = MaterialTheme(
@@ -238,8 +277,8 @@ fun InputField(
             onClick = { hadFocus = false; editing = true },
             modifier = modifier,
             shape = ClickableSurfaceDefaults.shape(shape),
-            colors = ClickableSurfaceDefaults.colors(containerColor = Color(0xFF1A1A1A), focusedContainerColor = Color(0xFF2A2A2A), contentColor = Color.White, focusedContentColor = Color.White),
-            border = ClickableSurfaceDefaults.border(focusedBorder = Border(BorderStroke(2.dp, Gold), shape = shape)),
+            colors = glassRowColors(),
+            border = glassRowBorder(shape),
             scale = ClickableSurfaceDefaults.scale(focusedScale = 1f),
         ) {
             val shown = if (password) "•".repeat(value.length) else value
@@ -325,10 +364,14 @@ fun FilterPill(label: String, selected: Boolean, icon: Boolean = false, onClick:
         onClick = onClick,
         leadingIcon = if (icon) { { Icon(Icons.Bolt, null, Modifier.size(16.dp)) } } else null,
         colors = FilterChipDefaults.colors(
-            containerColor = Color(0x33FFFFFF), contentColor = Color.White,
+            containerColor = Glass.Fill, contentColor = Color.White,
             focusedContainerColor = Color.White, focusedContentColor = Color.Black,
             selectedContainerColor = Gold.copy(alpha = 0.85f), selectedContentColor = Color.Black,
             focusedSelectedContainerColor = Gold, focusedSelectedContentColor = Color.Black,
+        ),
+        border = FilterChipDefaults.border(
+            border = glassBorder(CircleShape), focusedBorder = Border.None,
+            selectedBorder = Border.None, focusedSelectedBorder = Border.None,
         ),
     ) { Text(label, fontSize = 13.sp, fontWeight = FontWeight.SemiBold) }
 }

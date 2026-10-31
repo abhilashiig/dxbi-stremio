@@ -304,7 +304,7 @@ private fun Billboard(
                 Spacer(Modifier.width(12.dp))
                 Button(
                     onClick = onInfo,
-                    colors = ButtonDefaults.colors(containerColor = Color(0x66808080), contentColor = Color.White, focusedContainerColor = Color.White, focusedContentColor = Color.Black),
+                    colors = glassButtonColors(), border = glassButtonBorder(),
                 ) {
                     Icon(Icons.Info, null, Modifier.size(20.dp))
                     Spacer(Modifier.width(8.dp))

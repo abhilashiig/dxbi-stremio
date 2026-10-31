@@ -136,7 +136,7 @@ private fun Details(meta: MetaDetail, nav: Nav) {
                     }
                     Button(
                         onClick = { scope.launch { Library.setInLibrary(meta.preview, item?.inLibrary != true) } },
-                        colors = ButtonDefaults.colors(containerColor = Color(0x66808080), contentColor = Color.White, focusedContainerColor = Color.White, focusedContentColor = Color.Black),
+                        colors = glassButtonColors(), border = glassButtonBorder(),
                     ) {
                         Icon(if (item?.inLibrary == true) Icons.Check else Icons.Add, null, Modifier.size(20.dp))
                         Spacer(Modifier.width(8.dp))

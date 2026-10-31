@@ -239,7 +239,7 @@ private fun NavRail(tab: Tab, current: FocusRequester, onFocus: (Boolean) -> Uni
             Box(Modifier.offset(x = 3.dp, y = marker + 11.dp).size(3.dp, 18.dp).background(Gold, RoundedCornerShape(2.dp)))
             Box(
                 Modifier.offset(x = 12.dp, y = highlight).height(ItemHeight).width(ItemHeight + (136.dp - ItemHeight) * scrim)
-                    .graphicsLayer { alpha = scrim }.background(Color(0x29FFFFFF), RoundedCornerShape(12.dp))
+                    .graphicsLayer { alpha = scrim }.glass(RoundedCornerShape(12.dp), Glass.Fill)
             )
             Column(
                 Modifier.padding(start = 12.dp)

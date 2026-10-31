@@ -118,7 +118,7 @@ fun LibraryScreen() {
     Column(Modifier.fillMaxSize().background(Color.Black).padding(top = 40.dp)) {
         Row(Modifier.padding(horizontal = Edge), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             types.forEachIndexed { i, (_, label) ->
-                Button(onClick = { filter = i }) { Text(label, color = if (i == filter) Gold else Color.Unspecified, fontWeight = if (i == filter) FontWeight.Bold else FontWeight.Normal) }
+                Button(onClick = { filter = i }, colors = glassButtonColors(), border = glassButtonBorder()) { Text(label, color = if (i == filter) Gold else Color.Unspecified, fontWeight = if (i == filter) FontWeight.Bold else FontWeight.Normal) }
             }
         }
         Spacer(Modifier.height(18.dp))
@@ -221,7 +221,7 @@ fun SettingsScreen() {
                 onClick = { item.action(); version++ },
                 modifier = Modifier.width(720.dp),
                 shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(8.dp)),
-                colors = ClickableSurfaceDefaults.colors(containerColor = Panel, focusedContainerColor = Color(0xFF2A2A2A), contentColor = Color.White, focusedContentColor = Color.White),
+                colors = glassRowColors(), border = glassRowBorder(RoundedCornerShape(8.dp)),
                 scale = ClickableSurfaceDefaults.scale(focusedScale = 1.01f),
             ) {
                 Column(Modifier.padding(horizontal = 20.dp, vertical = 14.dp)) {
@@ -270,7 +270,7 @@ fun PlaybackTestsScreen() {
             Surface(
                 onClick = { activity.startActivity(PlayRequest(url = TESTS + path, title = title, streamText = title).intent(activity)) },
                 modifier = Modifier.width(640.dp).then(if (path == TEST_CLIPS.first().second) Modifier.focusRequester(first) else Modifier),
-                colors = ClickableSurfaceDefaults.colors(containerColor = Panel, focusedContainerColor = Color(0xFF2A2A2A), contentColor = Color.White, focusedContentColor = Color.White),
+                colors = glassRowColors(), border = glassRowBorder(RoundedCornerShape(8.dp)),
                 scale = ClickableSurfaceDefaults.scale(focusedScale = 1.01f),
             ) {
                 Text(title, fontSize = 16.sp, modifier = Modifier.padding(horizontal = 20.dp, vertical = 14.dp))
@@ -334,15 +334,15 @@ fun SignInScreen() {
                             busy = false
                         }
                     }) { Text(if (busy) "Signing in…" else "Sign in") }
-                    Button(onClick = { emailMode = false }) { Text("Use a code instead") }
+                    Button(onClick = { emailMode = false }, colors = glassButtonColors(), border = glassButtonBorder()) { Text("Use a code instead") }
                 }
             } else {
                 Text("1.  On your phone, scan the QR code, or open link.stremio.com", fontSize = 16.sp, color = Color.White)
                 Text("2.  Sign in there and enter this code:", fontSize = 16.sp, color = Color.White, modifier = Modifier.padding(top = 6.dp))
                 Text(link?.code ?: "…", fontSize = 44.sp, fontWeight = FontWeight.Bold, color = Gold, letterSpacing = 8.sp, modifier = Modifier.padding(vertical = 10.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Button(onClick = { emailMode = true }) { Text("Use email and password") }
-                    Button(onClick = { Session.browseAsGuest() }) { Text("Browse without an account") }
+                    Button(onClick = { emailMode = true }, colors = glassButtonColors(), border = glassButtonBorder()) { Text("Use email and password") }
+                    Button(onClick = { Session.browseAsGuest() }, colors = glassButtonColors(), border = glassButtonBorder()) { Text("Browse without an account") }
                 }
             }
             error?.let { Text(it, color = Color(0xFFFF8A80), fontSize = 14.sp, modifier = Modifier.padding(top = 12.dp)) }

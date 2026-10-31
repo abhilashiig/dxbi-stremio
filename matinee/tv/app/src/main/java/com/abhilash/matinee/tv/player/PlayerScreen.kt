@@ -1,5 +1,11 @@
 package com.abhilash.matinee.tv.player
 
+import com.abhilash.matinee.tv.ui.Glass
+import com.abhilash.matinee.tv.ui.glass
+import com.abhilash.matinee.tv.ui.glassBorder
+import com.abhilash.matinee.tv.ui.glassButtonColors
+import com.abhilash.matinee.tv.ui.glassButtonBorder
+import androidx.tv.material3.Border
 import android.view.KeyEvent
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
@@ -189,7 +195,7 @@ fun PlayerScreen(view: PlayerView, ui: PlayerUi, actions: PlayerActions, request
             enter = fadeIn(tween(120)) + scaleIn(tween(160), initialScale = 0.7f),
             exit = fadeOut(tween(380)) + scaleOut(tween(380), targetScale = 1.3f),
         ) {
-            Box(Modifier.size(96.dp).background(Color(0x99000000), CircleShape), contentAlignment = Alignment.Center) {
+            Box(Modifier.size(96.dp).glass(CircleShape), contentAlignment = Alignment.Center) {
                 Icon(flashIcon, null, Modifier.size(52.dp), tint = Color.White)
             }
         }
@@ -382,7 +388,8 @@ private fun RoundButton(
         onClick = onClick,
         modifier = modifier.size(size),
         shape = ClickableSurfaceDefaults.shape(CircleShape),
-        colors = ClickableSurfaceDefaults.colors(containerColor = Color(0x33FFFFFF), contentColor = Color.White, focusedContainerColor = Color.White, focusedContentColor = Color.Black),
+        colors = ClickableSurfaceDefaults.colors(containerColor = Glass.Fill, contentColor = Color.White, focusedContainerColor = Color.White, focusedContentColor = Color.Black),
+        border = ClickableSurfaceDefaults.border(border = glassBorder(CircleShape), focusedBorder = Border.None),
         scale = ClickableSurfaceDefaults.scale(focusedScale = 1.12f),
     ) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -397,7 +404,8 @@ private fun PillButton(icon: ImageVector, label: String, onClick: () -> Unit) {
     Surface(
         onClick = onClick,
         shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(50)),
-        colors = ClickableSurfaceDefaults.colors(containerColor = Color(0x33FFFFFF), contentColor = Color.White, focusedContainerColor = Color.White, focusedContentColor = Color.Black),
+        colors = ClickableSurfaceDefaults.colors(containerColor = Glass.Fill, contentColor = Color.White, focusedContainerColor = Color.White, focusedContentColor = Color.Black),
+        border = ClickableSurfaceDefaults.border(border = glassBorder(RoundedCornerShape(50)), focusedBorder = Border.None),
         scale = ClickableSurfaceDefaults.scale(focusedScale = 1.06f),
     ) {
         Row(Modifier.padding(horizontal = 18.dp, vertical = 11.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -494,7 +502,7 @@ private fun InfoPanel(actions: PlayerActions) {
     val first = remember { FocusRequester() }
     val lines = actions.infoLines()
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.CenterEnd) {
-        Column(Modifier.fillMaxHeight().width(460.dp).background(Color(0xF0101010)).padding(24.dp)) {
+        Column(Modifier.padding(20.dp).fillMaxHeight().width(440.dp).glass(RoundedCornerShape(20.dp), Color(0xE0101010)).padding(24.dp)) {
             Text("Info", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Gold)
             Spacer(Modifier.height(12.dp))
             LazyColumn(verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -502,7 +510,8 @@ private fun InfoPanel(actions: PlayerActions) {
                     Surface(
                         onClick = {},
                         modifier = Modifier.fillMaxWidth().then(if (i == 0) Modifier.focusRequester(first) else Modifier),
-                        colors = ClickableSurfaceDefaults.colors(containerColor = Color.Transparent, focusedContainerColor = Color(0xFF2E2E2E), contentColor = Color.White, focusedContentColor = Color.White),
+                        shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(8.dp)),
+                        colors = ClickableSurfaceDefaults.colors(containerColor = Color.Transparent, focusedContainerColor = Glass.Fill, contentColor = Color.White, focusedContentColor = Color.White),
                         scale = ClickableSurfaceDefaults.scale(focusedScale = 1f),
                     ) {
                         Text(lines[i], fontSize = 15.sp, modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp))
@@ -537,7 +546,7 @@ private fun ErrorBox(message: String, actions: PlayerActions) {
             Spacer(Modifier.height(20.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 Button(onClick = { actions.retry() }, modifier = Modifier.focusRequester(retry)) { Text("Try again") }
-                Button(onClick = { actions.exit() }) { Text("Back") }
+                Button(onClick = { actions.exit() }, colors = glassButtonColors(), border = glassButtonBorder()) { Text("Back") }
             }
         }
     }
@@ -549,8 +558,7 @@ private fun Toast(text: String) {
     Text(
         text, fontSize = 14.sp, color = Color.White,
         modifier = Modifier.padding(bottom = 8.dp).width(420.dp)
-            .background(Color(0xE0181818), RoundedCornerShape(8.dp))
-            .border(1.dp, Color(0x33FFFFFF), RoundedCornerShape(8.dp))
+            .glass(RoundedCornerShape(12.dp), Color(0xE0181818))
             .padding(horizontal = 16.dp, vertical = 12.dp)
     )
 }

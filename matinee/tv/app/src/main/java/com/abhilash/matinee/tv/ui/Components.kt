@@ -153,7 +153,8 @@ fun PosterRow(
             horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(14.dp),
             modifier = Modifier.focusRestorer(),
         ) {
-            items(items, key = { it.id }) { meta ->
+            // Add-on catalogs can list the same title twice, and a repeated key crashes the LazyRow
+            items(items.distinctBy { it.id }, key = { it.id }) { meta ->
                 val key = "$rowKey/${meta.id}"
                 PosterCard(meta, focusId == key, progress(meta), onFocus = { onFocus(key, meta) }, onClick = { onClick(meta) })
             }

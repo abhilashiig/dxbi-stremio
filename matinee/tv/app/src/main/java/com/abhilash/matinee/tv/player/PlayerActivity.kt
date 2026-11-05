@@ -12,6 +12,7 @@ import android.net.Uri
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.annotation.OptIn
@@ -157,6 +158,7 @@ class PlayerActivity : ComponentActivity(), PlayerActions {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         request = PlayRequest.from(intent)
         stream = StreamChoice(request.url, request.headers, request.streamText)
         fallbacks = request.alternatives
@@ -164,7 +166,6 @@ class PlayerActivity : ComponentActivity(), PlayerActions {
         positionMs = request.resumeMs
         playerView = PlayerView(this).apply {
             useController = false
-            keepScreenOn = true
             setShutterBackgroundColor(android.graphics.Color.BLACK)
         }
         applySubtitleStyle()

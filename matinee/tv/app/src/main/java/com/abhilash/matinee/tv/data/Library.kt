@@ -95,12 +95,15 @@ object Library {
     suspend fun refresh() {
         val key = Session.authKey ?: return
         val remote = Stremio.library(key)
-        locked {
+        val unsynced = locked {
+            val (merged, newer) = mergeLibrary(raw, remote)
             raw.clear()
-            remote.forEach { j -> j.str("_id")?.let { raw[it] = j } }
+            raw.putAll(merged)
             persist()
             publish()
+            newer
         }
+        if (unsynced.isNotEmpty()) runCatching { Stremio.putLibrary(key, unsynced) }
     }
 
     suspend fun clear() = locked {
@@ -160,6 +163,17 @@ object Library {
     private fun publish() {
         _items.value = raw.values.mapNotNull { LibItem.from(it) }
     }
+}
+
+// Newest _mtime wins, as in stremio-core. Taking Stremio's copy outright lost progress: the refresh as the player closes
+// fetched before the player's save got there, so the title resumed from an older spot or the start.
+// Returns the merged library and the local items newer than Stremio's copy, which still need uploading.
+fun mergeLibrary(local: Map<String, JSONObject>, remote: List<JSONObject>): Pair<Map<String, JSONObject>, List<JSONObject>> {
+    val merged = LinkedHashMap<String, JSONObject>()
+    remote.forEach { j -> j.str("_id")?.let { merged[it] = j } }
+    val newer = local.filter { (id, j) -> parseIso(j.str("_mtime")) > parseIso(merged[id]?.str("_mtime")) }
+    merged.putAll(newer)
+    return merged to newer.values.toList()
 }
 
 private fun isoFormat() = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.US).apply { timeZone = TimeZone.getTimeZone("UTC") }

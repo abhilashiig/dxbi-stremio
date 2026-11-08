@@ -153,6 +153,7 @@ class PlayerActivity : ComponentActivity(), PlayerActions {
     private var tags = streamTags("")
     // Streams are huge and read once: kept out of the HTTP cache the addon calls use
     private val streamClient by lazy { Http.client.newBuilder().cache(null).build() }
+    private var reconnects = 0
     private var droppedFrames = 0
     private var dropWindow = ArrayDeque<Pair<Long, Int>>()
 
@@ -311,9 +312,13 @@ class PlayerActivity : ComponentActivity(), PlayerActions {
     }
 
     private val listener = object : Player.Listener {
+        // Not isPlaying: that's false while buffering, and the button would offer Play to someone wanting to pause
+        override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
+            ui.playing = playWhenReady
+        }
+
         override fun onIsPlayingChanged(isPlaying: Boolean) {
-            ui.playing = isPlaying
-            if (!isPlaying) saveProgress()
+            if (isPlaying) reconnects = 0 else saveProgress()
         }
 
         override fun onPlaybackStateChanged(state: Int) {
@@ -403,7 +408,9 @@ class PlayerActivity : ComponentActivity(), PlayerActions {
         p.playWhenReady = false
         ui.toast = "Matching the TV to %.3f fps".format(fps)
         val displays = getSystemService(DisplayManager::class.java)
-        val resumeAfterSwitch = Runnable { player?.playWhenReady = resume }
+        // Once only: the 4 s fallback used to un-pause someone who paused after the switch had already resumed
+        var resumed = false
+        val resumeAfterSwitch = Runnable { if (!resumed) { resumed = true; player?.playWhenReady = resume } }
         val displayListener = object : DisplayManager.DisplayListener {
             override fun onDisplayAdded(displayId: Int) = Unit
             override fun onDisplayRemoved(displayId: Int) = Unit
@@ -473,6 +480,14 @@ class PlayerActivity : ComponentActivity(), PlayerActions {
         }
         val sourceFailure = error.errorCode in PlaybackException.ERROR_CODE_IO_UNSPECIFIED until PlaybackException.ERROR_CODE_PARSING_CONTAINER_MALFORMED
         if (sourceFailure && tryNextStream()) return
+        // Mid-film, the connection (idle through a long pause) died and ExoPlayer's quick retries ran out: reconnect
+        // at the same spot, as "Try again" would, waiting longer each time for the debrid server to let go of the old one
+        if (sourceFailure && ui.started && reconnects < 3) {
+            reconnects++
+            ui.toast = "The stream's connection dropped, reconnecting…"
+            handler.postDelayed({ restart() }, 2_000L * reconnects)
+            return
+        }
         ui.error = when (error.errorCode) {
             PlaybackException.ERROR_CODE_DECODER_INIT_FAILED, PlaybackException.ERROR_CODE_DECODING_FAILED,
             PlaybackException.ERROR_CODE_DECODING_FORMAT_UNSUPPORTED, PlaybackException.ERROR_CODE_DECODING_FORMAT_EXCEEDS_CAPABILITIES ->
@@ -532,7 +547,7 @@ class PlayerActivity : ComponentActivity(), PlayerActions {
     // PlayerActions, called from the overlay
 
     override fun togglePlay() {
-        player?.let { if (it.isPlaying) it.pause() else it.play() }
+        player?.let { it.playWhenReady = !it.playWhenReady }
     }
 
     override fun seekTo(ms: Long) {
@@ -544,12 +559,21 @@ class PlayerActivity : ComponentActivity(), PlayerActions {
 
     override fun selectTrack(group: Tracks.Group, index: Int) {
         if (group.type == C.TRACK_TYPE_AUDIO) audioPickedByUser = true
+        if (group.type == C.TRACK_TYPE_TEXT) rememberSubtitles(group.getTrackFormat(index).language)
         applyOverride(group, index)
     }
 
     override fun subtitlesOff() {
+        Settings.subtitleLanguage = null
         val p = player ?: return
         p.trackSelectionParameters = p.trackSelectionParameters.buildUpon().setTrackTypeDisabled(C.TRACK_TYPE_TEXT, true).build()
+    }
+
+    // The language picked here (or Off) becomes the subtitle setting, so the next episode or film starts with it.
+    // Settings keep 2-letter codes (en); addons send 3-letter ones (eng).
+    private fun rememberSubtitles(language: String?) {
+        if (language.isNullOrEmpty() || language == "und") return
+        Settings.subtitleLanguage = Locale.getAvailableLocales().firstOrNull { sameLanguage(it.language, language) }?.language ?: language
     }
 
     // A subtitle language is set but neither the stream nor the up-front pick had it: use the best addon one once it arrives
@@ -598,6 +622,7 @@ class PlayerActivity : ComponentActivity(), PlayerActions {
 
     // Adding a subtitle file means re-preparing at the same spot; it's selected once its track appears
     override fun useAddonSubtitle(track: SubtitleTrack) {
+        rememberSubtitles(track.lang)
         if (sideLoaded.none { it.url == track.url }) sideLoaded = sideLoaded + track
         pendingSubtitleId = "addon:${track.id}"
         val p = player ?: return

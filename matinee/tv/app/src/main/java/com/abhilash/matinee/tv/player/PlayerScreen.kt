@@ -141,6 +141,7 @@ fun PlayerScreen(view: PlayerView, ui: PlayerUi, actions: PlayerActions, request
     var flashIcon by remember { mutableStateOf(Icons.Play) }
     var flashVisible by remember { mutableStateOf(false) }
     var flashing by remember { mutableIntStateOf(0) }
+    var handledDown by remember { mutableIntStateOf(KeyEvent.KEYCODE_UNKNOWN) }
     val root = remember { FocusRequester() }
     val playButton = remember { FocusRequester() }
     val seekBar = remember { FocusRequester() }
@@ -167,9 +168,12 @@ fun PlayerScreen(view: PlayerView, ui: PlayerUi, actions: PlayerActions, request
             .fillMaxSize()
             .background(Color.Black)
             .onPreviewKeyEvent { e ->
+                val key = e.nativeKeyEvent.keyCode
+                // OK pauses on key-down and shows the controls with Play focused; tv-material clicks on key-up with no
+                // matching key-down, so letting that key-up through pressed Play straight away and resumed playback
+                if (e.type == KeyEventType.KeyUp) return@onPreviewKeyEvent (key == handledDown).also { if (it) handledDown = KeyEvent.KEYCODE_UNKNOWN }
                 if (e.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
                 interaction++
-                val key = e.nativeKeyEvent.keyCode
                 when (key) {
                     KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE, KeyEvent.KEYCODE_MEDIA_PLAY, KeyEvent.KEYCODE_MEDIA_PAUSE -> { toggle(); show(); true }
                     KeyEvent.KEYCODE_MEDIA_FAST_FORWARD -> { scrubBy(30_000); true }
@@ -181,7 +185,7 @@ fun PlayerScreen(view: PlayerView, ui: PlayerUi, actions: PlayerActions, request
                         KeyEvent.KEYCODE_DPAD_UP, KeyEvent.KEYCODE_DPAD_DOWN -> { show(); true }
                         else -> false
                     }
-                }
+                }.also { if (it) handledDown = key }
             }
             .focusRequester(root)
             .focusable()

@@ -7,6 +7,9 @@ import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.focusRestorer
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.tv.material3.ButtonDefaults
 import androidx.tv.material3.ClickableSurfaceDefaults
 import androidx.tv.material3.Icon
@@ -101,13 +104,20 @@ private fun Details(meta: MetaDetail, nav: Nav) {
         next?.label?.takeIf { it.isNotEmpty() }?.let { append(" $it") }
     }
     val play = remember { FocusRequester() }
+    val header = remember { BringIntoViewRequester() }
     var season by rememberSaveable { mutableIntStateOf(next?.season ?: meta.seasons.firstOrNull() ?: 1) }
 
     FullBackdrop(meta.preview.background)
     CompositionLocalProvider(LocalBringIntoViewSpec provides rememberMinimalScroll()) {
-    LazyColumn(contentPadding = PaddingValues(top = 56.dp, bottom = 48.dp), modifier = Modifier.fillMaxSize()) {
+    LazyColumn(contentPadding = PaddingValues(bottom = 48.dp), modifier = Modifier.fillMaxSize()) {
         item {
-            Column(Modifier.padding(horizontal = Edge).width(560.dp)) {
+            // Focus only goes as high as the buttons, and minimal scrolling stopped there, leaving the title and
+            // description cut off after a trip down the episodes: back on the buttons, the whole header comes into view
+            Column(
+                Modifier.bringIntoViewRequester(header)
+                    .onFocusChanged { if (it.hasFocus) scope.launch { header.bringIntoView() } }
+                    .padding(start = Edge, end = Edge, top = 56.dp).width(560.dp)
+            ) {
                 Text(if (isSeries) "SERIES" else "FILM", fontSize = 12.sp, fontWeight = FontWeight.Bold, letterSpacing = 4.sp, color = Gold,
                     modifier = Modifier.padding(bottom = 8.dp))
                 if (meta.preview.logo != null) {

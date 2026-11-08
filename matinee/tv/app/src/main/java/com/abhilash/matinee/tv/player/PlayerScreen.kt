@@ -95,7 +95,7 @@ import androidx.compose.runtime.produceState
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.platform.LocalContext
 import com.abhilash.matinee.tv.data.Video
-import com.abhilash.matinee.tv.ui.StreamCard
+import com.abhilash.matinee.tv.ui.StreamRow
 import java.util.Date
 
 class PlayerUi {
@@ -590,7 +590,7 @@ private fun VersionsPanel(ui: PlayerUi, actions: PlayerActions, close: () -> Uni
                 items(versions.size, key = { versions[it].stream.url }) { i ->
                     val v = versions[i]
                     val focusHere = i == current.coerceAtLeast(0)
-                    StreamCard(v, if (focusHere) Modifier.focusRequester(first) else Modifier, playing = i == current) {
+                    StreamRow(v, if (focusHere) Modifier.focusRequester(first) else Modifier, tag = if (i == current) "PLAYING" else null) {
                         actions.switchTo(v)
                         close()
                     }
@@ -706,7 +706,7 @@ private fun Toast(text: String) {
     )
 }
 
-private fun time(ms: Long): String {
+fun time(ms: Long): String {
     val s = ms / 1000
     return if (s >= 3600) "%d:%02d:%02d".format(s / 3600, s / 60 % 60, s % 60) else "%d:%02d".format(s / 60, s % 60)
 }

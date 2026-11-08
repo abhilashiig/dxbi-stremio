@@ -141,7 +141,62 @@ private fun badges(t: StreamTags) = buildList {
         t.dd -> add("DD")
     }
     if (t.cached == true) add("Instant")
-    t.sizeBytes?.let { add(if (it >= 1e9) "%.1f GB".format(it / 1e9) else "%.0f MB".format(it / 1e6)) }
+    sizeLabel(t.sizeBytes)?.let { add(it) }
+}
+
+fun sizeLabel(bytes: Long?) = bytes?.let { if (it >= 1e9) "%.1f GB".format(it / 1e9) else "%.0f MB".format(it / 1e6) }
+
+fun hdrLabel(t: StreamTags) = when {
+    t.dolbyVision -> "Dolby Vision"
+    t.hdr10Plus -> "HDR10+"
+    t.hdr10 -> "HDR10"
+    t.hlg -> "HLG"
+    else -> null
+}
+
+// What tells one version from another: the filename after its resolution, dots turned to spaces
+// ("Show.S01E01.Pilot.2160p.AMZN.WEB-DL.DDP5.1.HEVC-GRP.mkv" -> "AMZN WEB-DL DDP5.1 HEVC-GRP")
+fun releaseLabel(s: StreamInfo): String {
+    val raw = s.filename ?: s.description.lines().firstOrNull { it.isNotBlank() } ?: s.name
+    val name = raw.substringAfterLast('/').replace(Regex("""\.(mkv|mp4|avi|m4v|ts|webm)$""", RegexOption.IGNORE_CASE), "")
+    val spaced = name.replace(Regex("""_|(?<!\d)(?<!\bH)\.|\.(?!\d)"""), " ").replace(Regex("""\s+"""), " ").trim()
+    val after = Regex("""\b(2160p|1440p|1080p|720p|576p|480p|4k|uhd)\b""", RegexOption.IGNORE_CASE).find(spaced)?.let { spaced.substring(it.range.last + 1).trim() }
+    return after?.takeIf { it.length >= 3 } ?: spaced
+}
+
+fun videoSummary(t: StreamTags, text: String) = listOfNotNull(
+    when { t.av1 -> "AV1"; t.hevc -> "HEVC"; has(text, """\b(x264|h\.?264|avc)\b""") -> "H.264"; else -> null },
+    hdrLabel(t) ?: "SDR",
+).joinToString(" · ")
+
+fun audioSummary(t: StreamTags, text: String): String? {
+    val format = when {
+        t.trueHd -> "Dolby TrueHD"
+        t.dtsHd -> "DTS-HD"
+        t.ddPlus -> "Dolby Digital Plus"
+        t.dts -> "DTS"
+        t.dd -> "Dolby Digital"
+        has(text, """\baac\b""") -> "AAC"
+        else -> null
+    }?.let { if (t.atmos) "$it Atmos" else it }
+    val channels = Regex("""(?<!\d)([2-7])\.([01])(?!\d)""").find(text)?.value
+    return listOfNotNull(format, channels).joinToString(" · ").ifEmpty { null }
+}
+
+private val SOURCES = mapOf(
+    "remux" to "REMUX", "bluray" to "Blu-ray", "blu-ray" to "Blu-ray", "bdrip" to "BDRip", "brrip" to "BRRip", "web-dl" to "WEB-DL",
+    "webdl" to "WEB-DL", "webrip" to "WEBRip", "web" to "WEB", "hdtv" to "HDTV", "dvdrip" to "DVDRip", "hdrip" to "HDRip", "cam" to "CAM",
+)
+private val SERVICES = mapOf(
+    "AMZN" to "Amazon", "NF" to "Netflix", "DSNP" to "Disney+", "ATVP" to "Apple TV+", "HMAX" to "HBO Max", "MAX" to "Max",
+    "HULU" to "Hulu", "PCOK" to "Peacock", "PMTP" to "Paramount+",
+)
+
+fun sourceLabel(text: String): String? {
+    val source = Regex("""\b(remux|blu-?ray|bdrip|brrip|web-?dl|webrip|web|hdtv|dvdrip|hdrip|cam)\b""", RegexOption.IGNORE_CASE)
+        .find(text)?.value?.lowercase()?.let { SOURCES[it] }
+    val service = Regex("""\b(AMZN|NF|DSNP|ATVP|HMAX|MAX|HULU|PCOK|PMTP)\b""").find(text)?.value?.let { SERVICES[it] }
+    return listOfNotNull(source, service).joinToString(" · ").ifEmpty { null }
 }
 
 val QUALITIES = listOf("4K", "1440p", "1080p", "720p", "SD", "Other")

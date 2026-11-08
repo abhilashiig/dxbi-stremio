@@ -135,4 +135,18 @@ class PlayerLogicTest {
         assertEquals("0x2", nextEpisode(videos, "0x1", now)?.id)
         assertNull(nextEpisode(videos, "missing", now))
     }
+
+    @Test
+    fun streamLabelsReadTheReleaseName() {
+        val file = "Breaking.Bad.S01E01.Pilot.2160p.AMZN.WEB-DL.DTS-HD.MA.5.1.H.265-GRP.mkv"
+        val s = StreamInfo("Torrentio", "https://x/1", "[TB+] Torrentio 4k", "", emptyMap(), file, null)
+        assertEquals("AMZN WEB-DL DTS-HD MA 5.1 H.265-GRP", releaseLabel(s))
+        val t = streamTags(s.text)
+        assertEquals("DTS-HD · 5.1", audioSummary(t, s.text))
+        assertEquals("WEB-DL · Amazon", sourceLabel(s.text))
+        assertEquals("HEVC · SDR", videoSummary(t, s.text))
+        // No resolution in the name: the whole name, cleaned
+        assertEquals("Some Movie 1999 BluRay", releaseLabel(StreamInfo("a", "u", "n", "", emptyMap(), "Some_Movie.1999.BluRay.mp4", null)))
+        assertEquals("Dolby TrueHD Atmos · 7.1", audioSummary(streamTags("TrueHD.Atmos.7.1"), "TrueHD.Atmos.7.1"))
+    }
 }

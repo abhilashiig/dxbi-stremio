@@ -49,6 +49,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.CompositingStrategy
@@ -87,6 +88,15 @@ import com.abhilash.matinee.tv.ui.Icons
 import com.abhilash.matinee.tv.ui.Muted
 import com.abhilash.matinee.tv.ui.Spinner
 import kotlinx.coroutines.delay
+import android.text.format.DateFormat
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.runtime.State
+import androidx.compose.runtime.produceState
+import androidx.compose.runtime.withFrameNanos
+import androidx.compose.ui.platform.LocalContext
+import com.abhilash.matinee.tv.data.Video
+import com.abhilash.matinee.tv.ui.StreamCard
+import java.util.Date
 
 class PlayerUi {
     var playing by mutableStateOf(false)
@@ -104,6 +114,13 @@ class PlayerUi {
     var error by mutableStateOf<String?>(null)
     var toast by mutableStateOf<String?>(null)
     var dropWarning by mutableStateOf(false)
+    var versions by mutableStateOf(emptyList<RankedStream>())
+    var versionsLoading by mutableStateOf(false)
+    var currentUrl by mutableStateOf("")
+    var next by mutableStateOf<Video?>(null)
+    var nextLoading by mutableStateOf(false)
+    var upNextDismissed by mutableStateOf(false)
+    var zoom by mutableStateOf(false)
 }
 
 interface PlayerActions {
@@ -123,9 +140,13 @@ interface PlayerActions {
     fun toggleSubtitleBackground()
     // 0 resets; otherwise added to the current shift (positive shows subtitles later)
     fun shiftSubtitles(ms: Long)
+    fun loadVersions()
+    fun switchTo(version: RankedStream)
+    fun playNext()
+    fun toggleZoom()
 }
 
-private enum class Panel { Tracks, Info }
+private enum class Panel { Tracks, Versions, Info }
 
 private val Edge = 56.dp
 
@@ -145,6 +166,13 @@ fun PlayerScreen(view: PlayerView, ui: PlayerUi, actions: PlayerActions, request
     val root = remember { FocusRequester() }
     val playButton = remember { FocusRequester() }
     val seekBar = remember { FocusRequester() }
+
+    // Up next shows for the last 40 s of an episode (there are no credits markers), or while Next is finding a stream
+    val upNext = ui.next?.takeIf {
+        !ui.upNextDismissed && ui.started && ui.error == null && !controls && panel == null &&
+            (ui.nextLoading || (ui.duration > 300_000 && ui.duration - ui.position <= 40_000))
+    }
+    val upNextButton = remember { FocusRequester() }
 
     fun show(seeking: Boolean = false) {
         if (!controls) focusSeekBar = seeking
@@ -178,7 +206,7 @@ fun PlayerScreen(view: PlayerView, ui: PlayerUi, actions: PlayerActions, request
                     KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE, KeyEvent.KEYCODE_MEDIA_PLAY, KeyEvent.KEYCODE_MEDIA_PAUSE -> { toggle(); show(); true }
                     KeyEvent.KEYCODE_MEDIA_FAST_FORWARD -> { scrubBy(30_000); true }
                     KeyEvent.KEYCODE_MEDIA_REWIND -> { scrubBy(-30_000); true }
-                    else -> if (controls || panel != null || ui.error != null || !ui.started) false else when (key) {
+                    else -> if (controls || panel != null || upNext != null || ui.error != null || !ui.started) false else when (key) {
                         KeyEvent.KEYCODE_DPAD_LEFT -> { scrubBy(-seekStep(e.nativeKeyEvent)); true }
                         KeyEvent.KEYCODE_DPAD_RIGHT -> { scrubBy(seekStep(e.nativeKeyEvent)); true }
                         KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER -> { toggle(); show(); true }
@@ -205,7 +233,8 @@ fun PlayerScreen(view: PlayerView, ui: PlayerUi, actions: PlayerActions, request
         }
 
         AnimatedVisibility(controls && panel == null, enter = fadeIn(tween(220)), exit = fadeOut(tween(300))) {
-            Controls(ui, actions, request, scrub, playButton, seekBar, onScrub = ::scrubBy, onToggle = ::toggle) {
+            Controls(ui, actions, request, scrub, playButton, seekBar, onScrub = ::scrubBy, onToggle = ::toggle,
+                onNext = { controls = false; actions.playNext() }) {
                 focusSeekBar = false
                 panel = it
             }
@@ -213,8 +242,13 @@ fun PlayerScreen(view: PlayerView, ui: PlayerUi, actions: PlayerActions, request
 
         when (panel) {
             Panel.Tracks -> TracksPanel(ui, actions) { panel = null }
+            Panel.Versions -> VersionsPanel(ui, actions) { panel = null }
             Panel.Info -> InfoPanel(actions)
             null -> Unit
+        }
+
+        AnimatedVisibility(upNext != null, Modifier.align(Alignment.BottomEnd), enter = fadeIn(tween(300)), exit = fadeOut(tween(200))) {
+            ui.next?.let { UpNext(it, ui, actions, upNextButton) { ui.upNextDismissed = true } }
         }
 
         AnimatedVisibility(!ui.started && ui.error == null, enter = fadeIn(), exit = fadeOut(tween(600))) {
@@ -225,7 +259,7 @@ fun PlayerScreen(view: PlayerView, ui: PlayerUi, actions: PlayerActions, request
 
         Column(Modifier.align(Alignment.TopEnd).padding(32.dp), horizontalAlignment = Alignment.End) {
             ui.toast?.let { Toast(it) }
-            if (ui.dropWarning) Toast("This stream is dropping frames on this device. A lighter version (lower bitrate or another codec) will play smoother.")
+            if (ui.dropWarning) Toast("This stream is dropping frames on this device. A lighter version (lower bitrate or another codec) will play smoother: Versions in the controls lists them.")
         }
     }
 
@@ -239,8 +273,9 @@ fun PlayerScreen(view: PlayerView, ui: PlayerUi, actions: PlayerActions, request
     LaunchedEffect(controls && panel == null) { actions.liftSubtitles(controls && panel == null) }
     LaunchedEffect(ui.toast) { if (ui.toast != null) { delay(4_000); ui.toast = null } }
     LaunchedEffect(ui.dropWarning) { if (ui.dropWarning) { delay(10_000); ui.dropWarning = false } }
-    LaunchedEffect(controls, panel) {
+    LaunchedEffect(controls, panel, upNext != null) {
         if (controls && panel == null) runCatching { (if (focusSeekBar) seekBar else playButton).requestFocus() }
+        else if (upNext != null) runCatching { upNextButton.requestFocus() }
         else if (!controls && panel == null) runCatching { root.requestFocus() }
     }
     LaunchedEffect(controls, interaction, ui.playing, panel, scrub) {
@@ -250,6 +285,7 @@ fun PlayerScreen(view: PlayerView, ui: PlayerUi, actions: PlayerActions, request
         when {
             panel != null -> panel = null
             controls -> controls = false
+            upNext != null -> ui.upNextDismissed = true
             else -> actions.exit()
         }
     }
@@ -314,48 +350,68 @@ private fun Loading(request: PlayRequest, badges: List<String>) {
 @Composable
 private fun Controls(
     ui: PlayerUi, actions: PlayerActions, request: PlayRequest, scrub: Long?,
-    playButton: FocusRequester, seekBar: FocusRequester, onScrub: (Long) -> Unit, onToggle: () -> Unit, open: (Panel) -> Unit,
+    playButton: FocusRequester, seekBar: FocusRequester, onScrub: (Long) -> Unit, onToggle: () -> Unit, onNext: () -> Unit,
+    open: (Panel) -> Unit,
 ) {
+    val now by rememberNow()
     Box(Modifier.fillMaxSize()) {
-        Box(Modifier.fillMaxWidth().height(200.dp).background(Brush.verticalGradient(listOf(Color(0xD9000000), Color.Transparent))))
-        Row(Modifier.fillMaxWidth().padding(horizontal = Edge, vertical = 36.dp)) {
-            Box(Modifier.weight(1f)) { TitleBlock(request, center = false) }
-            Badges(ui.badges)
-        }
+        Box(Modifier.fillMaxWidth().height(140.dp).background(Brush.verticalGradient(listOf(Color(0x99000000), Color.Transparent))))
+        Text(clock(now), fontSize = 24.sp, fontWeight = FontWeight.Light, color = Color.White,
+            modifier = Modifier.align(Alignment.TopEnd).padding(top = 28.dp, end = Edge))
         Column(
             Modifier.align(Alignment.BottomCenter).fillMaxWidth()
-                .background(Brush.verticalGradient(listOf(Color.Transparent, Color(0xF2000000))))
-                .padding(start = Edge, end = Edge, top = 96.dp, bottom = 36.dp)
+                .background(Brush.verticalGradient(listOf(Color.Transparent, Color(0xCC000000))))
+                .padding(start = Edge, end = Edge, top = 120.dp, bottom = 28.dp)
         ) {
-            SeekBar(ui, scrub, seekBar, onScrub, onToggle)
-            Spacer(Modifier.height(20.dp))
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                RoundButton(Icons.Replay, "Back 10 seconds", label = "10") { onScrub(-10_000) }
-                Spacer(Modifier.width(18.dp))
-                RoundButton(if (ui.playing) Icons.Pause else Icons.Play, if (ui.playing) "Pause" else "Play", size = 64.dp,
-                    modifier = Modifier.focusRequester(playButton)) { actions.togglePlay() }
-                Spacer(Modifier.width(18.dp))
-                RoundButton(Icons.Replay, "Forward 10 seconds", label = "10", mirrored = true) { onScrub(10_000) }
-                Spacer(Modifier.weight(1f))
-                PillButton(Icons.Subtitles, "Audio & Subtitles") { open(Panel.Tracks) }
-                Spacer(Modifier.width(12.dp))
-                PillButton(Icons.Info, "Info") { open(Panel.Info) }
+            Row(verticalAlignment = Alignment.Bottom) {
+                Box(Modifier.weight(1f)) { TitleBlock(request, center = false) }
+                Badges(ui.badges)
+            }
+            Spacer(Modifier.height(16.dp))
+            Column(Modifier.fillMaxWidth().glass(RoundedCornerShape(28.dp)).padding(start = 22.dp, end = 22.dp, top = 16.dp, bottom = 14.dp)) {
+                SeekBar(ui, scrub, now, seekBar, onScrub, onToggle)
+                Spacer(Modifier.height(12.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    RoundButton(Icons.Replay, "Back 10 seconds", size = 46.dp, label = "10") { onScrub(-10_000) }
+                    Spacer(Modifier.width(12.dp))
+                    RoundButton(if (ui.playing) Icons.Pause else Icons.Play, if (ui.playing) "Pause" else "Play", size = 58.dp,
+                        modifier = Modifier.focusRequester(playButton)) { actions.togglePlay() }
+                    Spacer(Modifier.width(12.dp))
+                    RoundButton(Icons.Replay, "Forward 10 seconds", size = 46.dp, label = "10", mirrored = true) { onScrub(10_000) }
+                    Spacer(Modifier.weight(1f))
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                        ui.next?.let { PillButton(Icons.Next, "Next", onClick = onNext) }
+                        if (request.type != null && request.videoId != null) PillButton(Icons.Versions, "Versions") { open(Panel.Versions) }
+                        PillButton(Icons.Subtitles, "Audio & Subtitles") { open(Panel.Tracks) }
+                        RoundButton(if (ui.zoom) Icons.Shrink else Icons.Expand, if (ui.zoom) "Fit the whole picture" else "Fill the screen", size = 46.dp) { actions.toggleZoom() }
+                        RoundButton(Icons.Info, "Info", size = 46.dp) { open(Panel.Info) }
+                    }
+                }
             }
         }
     }
 }
 
+// Wall-clock time, ticking while the controls show
 @Composable
-private fun SeekBar(ui: PlayerUi, scrub: Long?, requester: FocusRequester, onScrub: (Long) -> Unit, onToggle: () -> Unit) {
+private fun rememberNow(): State<Long> = produceState(System.currentTimeMillis()) {
+    while (true) { value = System.currentTimeMillis(); delay(5_000) }
+}
+
+@Composable
+private fun clock(at: Long): String = DateFormat.getTimeFormat(LocalContext.current).format(Date(at))
+
+@Composable
+private fun SeekBar(ui: PlayerUi, scrub: Long?, now: Long, requester: FocusRequester, onScrub: (Long) -> Unit, onToggle: () -> Unit) {
     var focused by remember { mutableStateOf(false) }
     val position = scrub ?: ui.position
     val duration = ui.duration.coerceAtLeast(1)
     val played = (position.toFloat() / duration).coerceIn(0f, 1f)
     val buffered = (ui.buffered.toFloat() / duration).coerceIn(0f, 1f)
     val thickness by animateDpAsState(if (focused) 8.dp else 4.dp, label = "thickness")
+    val remaining = (ui.duration - position).coerceAtLeast(0)
     Row(verticalAlignment = Alignment.CenterVertically) {
-        Text(time(position), fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = if (scrub != null) Gold else Color.White,
-            modifier = Modifier.widthIn(min = 64.dp))
+        Text(time(ui.position), fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = Color.White, modifier = Modifier.widthIn(min = 60.dp))
         BoxWithConstraints(
             Modifier.weight(1f).height(28.dp).padding(horizontal = 14.dp)
                 .focusRequester(requester)
@@ -376,10 +432,16 @@ private fun SeekBar(ui: PlayerUi, scrub: Long?, requester: FocusRequester, onScr
             Box(Modifier.fillMaxWidth().height(thickness).background(Color(0x40FFFFFF), track))
             if (scrub == null) Box(Modifier.fillMaxWidth(buffered).height(thickness).background(Color(0x66FFFFFF), track))
             Box(Modifier.fillMaxWidth(played).height(thickness).background(Gold, track))
-            if (focused) Box(Modifier.offset(x = maxWidth * played - 9.dp).size(18.dp).background(Color.White, CircleShape))
+            if (focused || scrub != null) Box(Modifier.offset(x = maxWidth * played - 9.dp).size(18.dp).background(Color.White, CircleShape))
+            // Where a seek will land, riding above the marker
+            if (scrub != null) Text(
+                time(scrub), fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.Black, textAlign = TextAlign.Center,
+                modifier = Modifier.offset(x = (maxWidth * played - 36.dp).coerceIn(0.dp, maxWidth - 72.dp), y = (-34).dp)
+                    .width(72.dp).background(Gold, RoundedCornerShape(8.dp)).padding(vertical = 4.dp),
+            )
         }
-        Text("-" + time((ui.duration - position).coerceAtLeast(0)), fontSize = 15.sp, color = Color.White, textAlign = TextAlign.End,
-            modifier = Modifier.widthIn(min = 64.dp))
+        Text("-" + time(remaining), fontSize = 15.sp, color = Color.White, textAlign = TextAlign.End, modifier = Modifier.widthIn(min = 60.dp))
+        if (ui.duration > 0) Text("  ·  Ends ${clock(now + remaining)}", fontSize = 15.sp, color = Color(0xFFBDBDBD))
     }
 }
 
@@ -412,7 +474,7 @@ private fun PillButton(icon: ImageVector, label: String, onClick: () -> Unit) {
         border = ClickableSurfaceDefaults.border(border = glassBorder(RoundedCornerShape(50)), focusedBorder = Border.None),
         scale = ClickableSurfaceDefaults.scale(focusedScale = 1.06f),
     ) {
-        Row(Modifier.padding(horizontal = 18.dp, vertical = 11.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.padding(horizontal = 16.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
             Icon(icon, null, Modifier.size(20.dp))
             Spacer(Modifier.width(8.dp))
             Text(label, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
@@ -496,6 +558,83 @@ private fun ChoiceColumn(title: String, choices: List<Choice>, width: Dp, focusI
                         }
                     }
                 }
+            }
+        }
+    }
+}
+
+// Every version the addons offer for this title, best first; picking one carries on from here
+@Composable
+private fun VersionsPanel(ui: PlayerUi, actions: PlayerActions, close: () -> Unit) {
+    val first = remember { FocusRequester() }
+    val list = rememberLazyListState()
+    LaunchedEffect(Unit) { actions.loadVersions() }
+    val versions = ui.versions.take(60)
+    val current = versions.indexOfFirst { it.stream.url == ui.currentUrl }
+    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.CenterEnd) {
+        Column(Modifier.padding(20.dp).fillMaxHeight().width(560.dp).glass(RoundedCornerShape(24.dp), Color(0xE0101010)).padding(20.dp)) {
+            Text("Versions", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Gold)
+            Text(
+                if (ui.versionsLoading) "Asking your addons…" else "${ui.versions.size} from your addons · plays on from ${time(ui.position)}",
+                fontSize = 13.sp, color = Muted, modifier = Modifier.padding(top = 2.dp, bottom = 12.dp),
+            )
+            LazyColumn(state = list, verticalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(bottom = 24.dp)) {
+                if (versions.isEmpty()) item {
+                    // Something to hold focus until the list arrives
+                    Surface(onClick = {}, modifier = Modifier.fillMaxWidth().focusRequester(first),
+                        colors = ClickableSurfaceDefaults.colors(containerColor = Color.Transparent, focusedContainerColor = Glass.Fill, contentColor = Color.White, focusedContentColor = Color.White),
+                        scale = ClickableSurfaceDefaults.scale(focusedScale = 1f)) {
+                        Text(if (ui.versionsLoading) "Loading…" else "Your addons have no other versions", fontSize = 15.sp, modifier = Modifier.padding(12.dp))
+                    }
+                }
+                items(versions.size, key = { versions[it].stream.url }) { i ->
+                    val v = versions[i]
+                    val focusHere = i == current.coerceAtLeast(0)
+                    StreamCard(v, if (focusHere) Modifier.focusRequester(first) else Modifier, playing = i == current) {
+                        actions.switchTo(v)
+                        close()
+                    }
+                }
+            }
+        }
+    }
+    LaunchedEffect(versions.isEmpty()) {
+        if (versions.isNotEmpty()) list.scrollToItem(current.coerceAtLeast(0))
+        withFrameNanos { }
+        runCatching { first.requestFocus() }
+    }
+}
+
+@Composable
+private fun UpNext(next: Video, ui: PlayerUi, actions: PlayerActions, button: FocusRequester, dismiss: () -> Unit) {
+    var left by remember { mutableIntStateOf(10) }
+    LaunchedEffect(ui.playing, left, ui.nextLoading) {
+        if (ui.nextLoading || !ui.playing) return@LaunchedEffect
+        if (left == 0) actions.playNext() else { delay(1_000); left-- }
+    }
+    Row(
+        Modifier.padding(end = Edge, bottom = 40.dp).width(520.dp).glass(RoundedCornerShape(20.dp)).padding(14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(Modifier.size(176.dp, 99.dp).background(Color(0xFF1E1E1E), RoundedCornerShape(10.dp))) {
+            next.thumbnail?.let { AsyncImage(it, null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(10.dp))) }
+        }
+        Spacer(Modifier.width(16.dp))
+        Column(Modifier.weight(1f)) {
+            Text("UP NEXT", fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 3.sp, color = Gold)
+            Text(listOf(next.label, next.title).filter { it.isNotEmpty() }.joinToString(" · "), fontSize = 16.sp, fontWeight = FontWeight.SemiBold,
+                color = Color.White, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 2.dp, bottom = 10.dp))
+            if (ui.nextLoading) Row(verticalAlignment = Alignment.CenterVertically) {
+                Spinner(Modifier.size(22.dp))
+                Spacer(Modifier.width(10.dp))
+                Text("Finding the best version…", fontSize = 14.sp, color = Color.White)
+            } else Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Button(onClick = { actions.playNext() }, modifier = Modifier.focusRequester(button)) {
+                    Icon(Icons.Play, null, Modifier.size(18.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text(if (ui.playing) "Play in $left" else "Play now")
+                }
+                Button(onClick = dismiss, colors = glassButtonColors(), border = glassButtonBorder()) { Text("Watch credits") }
             }
         }
     }

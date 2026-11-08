@@ -125,6 +125,11 @@ object Settings {
         get() = prefs.getBoolean("subtitleBackground", false)
         set(v) = prefs.edit().putBoolean("subtitleBackground", v).apply()
 
+    // Fill the screen, cropping a wide film's black bars, instead of fitting the whole picture
+    var zoom: Boolean
+        get() = prefs.getBoolean("zoom", false)
+        set(v) = prefs.edit().putBoolean("zoom", v).apply()
+
     var intro: Boolean
         get() = prefs.getBoolean("intro", true)
         set(v) = prefs.edit().putBoolean("intro", v).apply()

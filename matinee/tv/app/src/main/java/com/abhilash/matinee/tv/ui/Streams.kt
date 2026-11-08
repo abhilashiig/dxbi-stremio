@@ -204,7 +204,7 @@ fun StreamsScreen(route: Route.Streams) {
 }
 
 @Composable
-private fun StreamCard(r: RankedStream, modifier: Modifier, onClick: () -> Unit) {
+fun StreamCard(r: RankedStream, modifier: Modifier, playing: Boolean = false, onClick: () -> Unit) {
     val q = quality(r.tags)
     val hdr = r.badges.firstNotNullOfOrNull { HDR_BADGES[it] }
     val rest = r.badges.filter { it !in HDR_BADGES && it != "Instant" && it !in setOf("4K", "1440p", "1080p", "720p", "SD") }
@@ -230,6 +230,7 @@ private fun StreamCard(r: RankedStream, modifier: Modifier, onClick: () -> Unit)
                     }
                     Text(r.stream.name.replace('\n', ' '), fontSize = 15.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
                     Text(r.stream.addon, fontSize = 12.sp, color = Muted, maxLines = 1, modifier = Modifier.padding(start = 12.dp))
+                    if (playing) Box(Modifier.padding(start = 8.dp)) { Chip("PLAYING", Gold, Color.Black) }
                 }
                 if (r.stream.description.isNotBlank()) {
                     Text(r.stream.description, fontSize = 13.sp, color = Color(0xFFBDBDBD), maxLines = 3, overflow = TextOverflow.Ellipsis, lineHeight = 17.sp)

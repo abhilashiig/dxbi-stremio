@@ -54,6 +54,11 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import androidx.media3.ui.SubtitleView
+import androidx.media3.ui.AspectRatioFrameLayout
+import com.abhilash.matinee.tv.data.StreamInfo
+import com.abhilash.matinee.tv.data.Video
+import com.abhilash.matinee.tv.data.parseIso
+import com.abhilash.matinee.tv.ui.fallbacksFor
 import com.abhilash.matinee.tv.MatineeApp
 import com.abhilash.matinee.tv.data.Http
 import com.abhilash.matinee.tv.data.Library
@@ -154,6 +159,7 @@ class PlayerActivity : ComponentActivity(), PlayerActions {
     // Streams are huge and read once: kept out of the HTTP cache the addon calls use
     private val streamClient by lazy { Http.client.newBuilder().cache(null).build() }
     private var reconnects = 0
+    private var versionsJob: Job? = null
     private var droppedFrames = 0
     private var dropWindow = ArrayDeque<Pair<Long, Int>>()
 
@@ -170,6 +176,13 @@ class PlayerActivity : ComponentActivity(), PlayerActions {
             setShutterBackgroundColor(android.graphics.Color.BLACK)
         }
         applySubtitleStyle()
+        applyZoom()
+        ui.currentUrl = stream.url
+        val metaId = request.metaId
+        val videoId = request.videoId
+        if (request.type == "series" && metaId != null && videoId != null) lifecycleScope.launch {
+            ui.next = runCatching { Repo.meta("series", metaId) }.getOrNull()?.let { nextEpisode(it.videos, videoId, System.currentTimeMillis()) }
+        }
         setContent { MatineeTheme { PlayerScreen(playerView, ui, this, request) } }
         getSystemService(AudioManager::class.java).registerAudioDeviceCallback(deviceCallback, handler)
     }
@@ -325,7 +338,7 @@ class PlayerActivity : ComponentActivity(), PlayerActions {
             ui.buffering = state == Player.STATE_BUFFERING || state == Player.STATE_IDLE
             if (state == Player.STATE_ENDED) {
                 saveProgress()
-                finish()
+                if (ui.next != null && !ui.upNextDismissed) playNext() else finish()
             }
         }
 
@@ -653,6 +666,76 @@ class PlayerActivity : ComponentActivity(), PlayerActions {
 
     override fun retry() = restart()
 
+    // The same list as the Streams screen, fetched the first time Versions opens
+    override fun loadVersions() {
+        val type = request.type ?: return
+        val videoId = request.videoId ?: return
+        if (versionsJob != null) return
+        ui.versionsLoading = true
+        versionsJob = lifecycleScope.launch {
+            val all = mutableListOf<StreamInfo>()
+            Repo.streams(type, videoId).collect { a ->
+                all += a.streams
+                ui.versions = rankStreams(all.distinctBy { it.url }, caps)
+            }
+            ui.versionsLoading = false
+        }
+    }
+
+    // Another file of the same title, from where this one is; the loading screen covers the swap
+    override fun switchTo(version: RankedStream) {
+        if (version.stream.url == stream.url) return
+        stream = StreamChoice(version.stream.url, version.stream.headers, version.stream.text)
+        fallbacks = fallbacksFor(version, ui.versions)
+        tags = streamTags(stream.text.orEmpty())
+        ui.currentUrl = stream.url
+        ui.started = false
+        ui.dropWarning = false
+        dropWindow.clear()
+        restart()
+    }
+
+    // Best stream for the next episode, as the Streams screen would rank it: instant ones, the addon the list is
+    // filtered to, and this episode's resolution first (someone who picked 1080p over a stuttering 4K keeps 1080p)
+    override fun playNext() {
+        val next = ui.next ?: return
+        val type = request.type ?: return
+        val metaId = request.metaId ?: return
+        if (ui.nextLoading) return
+        ui.nextLoading = true
+        lifecycleScope.launch {
+            val all = mutableListOf<StreamInfo>()
+            withTimeoutOrNull(8_000) { Repo.streams(type, next.id).collect { all += it.streams } }
+            val ranked = rankStreams(all.distinctBy { it.url }, caps)
+            val pool = instantOnly(ranked).ifEmpty { ranked }
+                .let { p -> p.filter { it.stream.addon == Settings.preferredAddon }.ifEmpty { p } }
+                .sortedByDescending { quality(it.tags) == quality(tags) }
+            val best = pool.firstOrNull()
+            if (best == null) {
+                ui.nextLoading = false
+                ui.toast = "Your addons have no streams for ${next.label} yet"
+                return@launch
+            }
+            startActivity(request.copy(
+                url = best.stream.url, headers = best.stream.headers, streamText = best.stream.text,
+                subtitle = listOf(next.label, next.title).filter { it.isNotEmpty() }.joinToString(" · "),
+                videoId = next.id, resumeMs = Library.item(metaId)?.takeIf { it.videoId == next.id }?.timeOffset ?: 0,
+                alternatives = fallbacksFor(best, pool),
+            ).intent(this@PlayerActivity))
+            finish()
+        }
+    }
+
+    override fun toggleZoom() {
+        Settings.zoom = !Settings.zoom
+        applyZoom()
+    }
+
+    private fun applyZoom() {
+        ui.zoom = Settings.zoom
+        playerView.resizeMode = if (ui.zoom) AspectRatioFrameLayout.RESIZE_MODE_ZOOM else AspectRatioFrameLayout.RESIZE_MODE_FIT
+    }
+
     override fun exit() = finish()
 
     override fun infoLines(): List<String> {
@@ -796,6 +879,14 @@ fun rankSubtitles(subs: List<SubtitleTrack>, preferred: String?, deviceLanguage:
             .thenBy { languageName(it.lang) }
             .thenByDescending { s -> tokens(s.release.orEmpty()).count { it in release } }
     )
+}
+
+// The episode after this one that has aired; specials only follow specials
+fun nextEpisode(videos: List<Video>, currentId: String, now: Long): Video? {
+    val i = videos.indexOfFirst { it.id == currentId }
+    if (i < 0) return null
+    val special = videos[i].season == 0
+    return videos.drop(i + 1).firstOrNull { (it.season == 0) == special }?.takeIf { parseIso(it.released) <= now }
 }
 
 private fun tokens(text: String) = text.lowercase().split(Regex("[^a-z0-9]+")).filter { it.length >= 3 }.toSet()

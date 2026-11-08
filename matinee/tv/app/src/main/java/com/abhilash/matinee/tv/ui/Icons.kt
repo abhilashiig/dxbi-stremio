@@ -18,6 +18,10 @@ object Icons {
     val Check = icon("M9,16.17L4.83,12l-1.42,1.41L9,19 21,7l-1.41,-1.41z")
     val Bolt = icon("M7,2v11h3v9l7,-12h-4l4,-8z")
     val Add = icon("M19,13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z")
+    val Next = icon("M6,18l8.5,-6L6,6v12zM16,6v12h2V6h-2z")
+    val Versions = icon("M11.99,18.54l-7.37,-5.73L3,14.07l9,7 9,-7 -1.63,-1.27 -7.38,5.74zM12,16l7.36,-5.73L21,9l-9,-7 -9,7 1.63,1.27L12,16z")
+    val Expand = icon("M7,14H5v5h5v-2H7v-3zm-2,-4h2V7h3V5H5v5zm12,7h-3v2h5v-5h-2v3zM14,5v2h3v3h2V5h-5z")
+    val Shrink = icon("M5,16h3v3h2v-5H5v2zm3,-8H5v2h5V5H8v3zm6,11h2v-3h3v-2h-5v5zm2,-11V5h-2v5h5V8h-3z")
 }
 
 // Navigation: Lucide outline icons (ISC licence), drawn as strokes so they stay crisp at any size and weight

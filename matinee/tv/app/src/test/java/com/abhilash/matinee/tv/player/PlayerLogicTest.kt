@@ -6,6 +6,7 @@ import androidx.media3.common.Format
 import androidx.media3.common.MimeTypes
 import com.abhilash.matinee.tv.data.StreamInfo
 import com.abhilash.matinee.tv.data.SubtitleTrack
+import com.abhilash.matinee.tv.data.Video
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -120,5 +121,18 @@ class PlayerLogicTest {
         )
         val ranked = rankSubtitles(subs, "en", "hi", "Show.S01E01.1080p.WEB-DL.DDP5.1.H.264-NTb")
         assertEquals(listOf("u3", "u2", "u4", "u1"), ranked.map { it.url })
+    }
+
+    @Test
+    fun nextEpisodeCrossesSeasonsSkipsSpecialsAndUnaired() {
+        fun ep(id: String, season: Int, episode: Int, released: String? = null) = Video(id, "", season, episode, released, null, null)
+        val videos = listOf(ep("1x1", 1, 1), ep("1x2", 1, 2), ep("2x1", 2, 1, "2026-01-01T00:00:00.000Z"),
+            ep("2x2", 2, 2, "2027-01-01T00:00:00.000Z"), ep("0x1", 0, 1), ep("0x2", 0, 2))
+        val now = 1_790_000_000_000 // Sep 2026
+        assertEquals("1x2", nextEpisode(videos, "1x1", now)?.id)
+        assertEquals("2x1", nextEpisode(videos, "1x2", now)?.id)
+        assertNull(nextEpisode(videos, "2x1", now)) // 2x2 hasn't aired, and specials don't follow the last episode
+        assertEquals("0x2", nextEpisode(videos, "0x1", now)?.id)
+        assertNull(nextEpisode(videos, "missing", now))
     }
 }

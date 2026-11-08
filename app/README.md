@@ -27,4 +27,4 @@ npm run dev                  # run from source (add --devtools for DevTools)
 npm run build:linux:x64      # or build:win:x64, build:mac:arm64, …
 ```
 
-Every build copies `../dxbi.plugin.js` in as the built-in plugin. Publishing a release on GitHub builds every platform and attaches the files to it (`.github/workflows/app.yml`).
+Every build copies `../dxbi.plugin.js` in as the built-in plugin.

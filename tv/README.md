@@ -34,4 +34,4 @@ keyAlias=dxbi-tv
 keyPassword=…
 ```
 
-Keep that key safe: every update must be signed with the same one, or Android won't install it over the old version. Publishing a release builds `dxbi-tv.apk` on GitHub when the key is in the repository's secrets (see `.github/workflows/tv.yml`).
+Keep that key safe: every update must be signed with the same one, or Android won't install it over the old version.

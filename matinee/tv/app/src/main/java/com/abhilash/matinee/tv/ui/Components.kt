@@ -42,6 +42,9 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontVariation
 import androidx.tv.material3.Typography
 import com.abhilash.matinee.tv.R
+import androidx.compose.foundation.Image
+import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.res.painterResource
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -356,6 +359,21 @@ fun InputField(
 fun Chip(text: String, color: Color = Color(0xFF2C2C2C), textColor: Color = Color.White) {
     Text(text, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = textColor,
         modifier = Modifier.background(color, RoundedCornerShape(4.dp)).padding(horizontal = 8.dp, vertical = 3.dp))
+}
+
+// Dolby Vision and HDR10+ show as their logos (brand/source/formats); any other label falls back to text
+@Composable
+fun FormatLogo(label: String, height: Dp, modifier: Modifier = Modifier, fallback: @Composable () -> Unit) {
+    val dv = label.equals("Dolby Vision", ignoreCase = true) || label == "DV"
+    val logo = when {
+        dv -> R.drawable.logo_dolby_vision
+        label == "HDR10+" -> R.drawable.logo_hdr10plus
+        else -> return fallback()
+    }
+    val painter = painterResource(logo)
+    // the Dolby Vision mark is black: drawn white on the dark UI. HDR10+ keeps its colours (text already made white)
+    Image(painter, label, modifier.height(height).aspectRatio(painter.intrinsicSize.width / painter.intrinsicSize.height),
+        colorFilter = if (dv) ColorFilter.tint(Color.White) else null)
 }
 
 // Each screen eases in instead of snapping, so moving between screens feels like one app

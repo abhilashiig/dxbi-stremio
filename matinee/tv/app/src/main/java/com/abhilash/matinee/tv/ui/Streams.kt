@@ -233,7 +233,11 @@ private fun StreamDetail(r: RankedStream, best: Boolean) {
         Row(verticalAlignment = Alignment.Bottom, modifier = Modifier.padding(top = 6.dp)) {
             Text(quality(t).let { if (it == "Other") "Unknown" else it }, fontSize = 30.sp, fontWeight = FontWeight.Black,
                 color = if (t.height >= 2160) Gold else Color.White)
-            hdrLabel(t)?.let { Text(it, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = Gold, modifier = Modifier.padding(start = 10.dp, bottom = 4.dp)) }
+            hdrLabel(t)?.let { label ->
+                FormatLogo(label, height = if (label == "HDR10+") 18.dp else 26.dp, modifier = Modifier.padding(start = 12.dp, bottom = 4.dp)) {
+                    Text(label, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = Gold, modifier = Modifier.padding(start = 10.dp, bottom = 4.dp))
+                }
+            }
         }
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 4.dp)) {
             when (t.cached) {
@@ -292,7 +296,11 @@ fun StreamRow(r: RankedStream, modifier: Modifier = Modifier, tag: String? = nul
         Row(Modifier.padding(horizontal = 12.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.width(56.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(if (q == "Other") "—" else q, fontSize = 17.sp, fontWeight = FontWeight.Black, color = if (t.height >= 2160) Gold else Color.White)
-                hdrShort(t)?.let { Text(it, fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Gold) }
+                hdrShort(t)?.let { label ->
+                    FormatLogo(label, height = if (label == "HDR10+") 10.dp else 15.dp, modifier = Modifier.padding(top = 2.dp)) {
+                        Text(label, fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Gold)
+                    }
+                }
             }
             Spacer(Modifier.width(10.dp))
             Column(Modifier.weight(1f)) {

@@ -34,3 +34,8 @@ Already in `matinee/tv/app/src/main/res/` (plus `drawable-nodpi/wordmark.png`, f
 
 ## Source
 `source/` has editable SVGs (wordmark, transparent wordmark, app icon, transparent mark, 1920×1080 banner) and PNG masters.
+
+## Format logos
+`source/formats/` has the Dolby Vision and HDR10+ logos as supplied. The app's copies are
+`drawable-nodpi/logo_dolby_vision.png` (trimmed, 96px tall; tinted white in code) and `logo_hdr10plus.png`
+(trimmed, 72px tall, black text made white for the dark UI). Shown by `FormatLogo` in `ui/Components.kt`.

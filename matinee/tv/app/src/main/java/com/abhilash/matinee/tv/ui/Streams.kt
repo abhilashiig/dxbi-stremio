@@ -22,6 +22,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.foundation.gestures.LocalBringIntoViewSpec
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -66,7 +68,7 @@ import com.abhilash.matinee.tv.player.rankStreams
 private val HDR_BADGES = mapOf("Dolby Vision" to "DV", "HDR10+" to "HDR10+", "HDR10" to "HDR10", "HLG" to "HLG")
 private val Instant = Color(0xFF2E9E5B)
 
-@OptIn(ExperimentalComposeUiApi::class)
+@OptIn(ExperimentalComposeUiApi::class, androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 fun StreamsScreen(route: Route.Streams) {
     val activity = LocalContext.current as Activity
@@ -134,8 +136,9 @@ fun StreamsScreen(route: Route.Streams) {
                 )
             }
             Column(Modifier.weight(1f).fillMaxHeight()) {
-                if (ranked.isNotEmpty()) {
-                    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.focusRestorer()) {
+                // Rows scroll only when a pill would be hidden: the TV default pivot cut "Instant only" off at the left
+                if (ranked.isNotEmpty()) CompositionLocalProvider(LocalBringIntoViewSpec provides rememberMinimalScroll()) {
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(4.dp), modifier = Modifier.focusRestorer()) {
                         item {
                             FilterPill("Instant only", instant, icon = true) { instant = !instant; Settings.instantOnly = instant }
                         }
@@ -148,8 +151,7 @@ fun StreamsScreen(route: Route.Streams) {
                             }
                         }
                     }
-                    Spacer(Modifier.height(8.dp))
-                    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.focusRestorer()) {
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(4.dp), modifier = Modifier.focusRestorer()) {
                         item { FilterPill("All qualities", only == null) { only = null } }
                         items(QUALITIES.filter { (qualityCounts[it] ?: 0) > 0 || it == only }, key = { it }) { q ->
                             FilterPill("$q  ${qualityCounts[q] ?: 0}", only == q) { only = if (only == q) null else q }

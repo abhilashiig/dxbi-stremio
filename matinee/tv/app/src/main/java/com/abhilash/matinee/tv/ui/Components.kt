@@ -363,6 +363,9 @@ fun FilterPill(label: String, selected: Boolean, icon: Boolean = false, onClick:
         selected = selected,
         onClick = onClick,
         leadingIcon = if (icon) { { Icon(Icons.Bolt, null, Modifier.size(16.dp)) } } else null,
+        // The chip's own shape is an 8 dp rectangle: without this the pill-shaped glass rim sat on square-ish corners
+        shape = FilterChipDefaults.shape(CircleShape),
+        scale = FilterChipDefaults.scale(focusedScale = 1.06f),
         colors = FilterChipDefaults.colors(
             containerColor = Glass.Fill, contentColor = Color.White,
             focusedContainerColor = Color.White, focusedContentColor = Color.Black,

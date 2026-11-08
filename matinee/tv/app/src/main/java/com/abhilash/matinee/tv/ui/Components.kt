@@ -37,6 +37,11 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.text.font.Font
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontVariation
+import androidx.tv.material3.Typography
+import com.abhilash.matinee.tv.R
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -135,8 +140,28 @@ fun glassRowColors() = ClickableSurfaceDefaults.colors(
 @Composable
 fun glassRowBorder(shape: Shape) = ClickableSurfaceDefaults.border(border = glassBorder(shape), focusedBorder = Border(BorderStroke(2.dp, Gold), shape = shape))
 
+// Inter, the closest free match to Netflix Sans: one variable file, each weight picked by its axis (Android 8+)
+@OptIn(androidx.compose.ui.text.ExperimentalTextApi::class)
+val Inter = FontFamily(
+    listOf(FontWeight.Light, FontWeight.Normal, FontWeight.Medium, FontWeight.SemiBold, FontWeight.Bold, FontWeight.Black).map { w ->
+        Font(R.font.inter, w, variationSettings = FontVariation.Settings(FontVariation.weight(w.weight)))
+    }
+)
+
+// Material's letter-spacing was tuned for Roboto; Inter is spaced to be set tight, as Netflix sets its text
+private fun TextStyle.inter() = copy(fontFamily = Inter, letterSpacing = 0.sp)
+
+private val InterType = Typography().run {
+    Typography(
+        displayLarge.inter(), displayMedium.inter(), displaySmall.inter(), headlineLarge.inter(), headlineMedium.inter(),
+        headlineSmall.inter(), titleLarge.inter(), titleMedium.inter(), titleSmall.inter(), bodyLarge.inter(), bodyMedium.inter(),
+        bodySmall.inter(), labelLarge.inter(), labelMedium.inter(), labelSmall.inter(),
+    )
+}
+
 @Composable
 fun MatineeTheme(content: @Composable () -> Unit) = MaterialTheme(
+    typography = InterType,
     colorScheme = darkColorScheme(
         primary = Gold, onPrimary = Color.Black, background = Color.Black, onBackground = Color.White,
         surface = Panel, onSurface = Color.White, surfaceVariant = Color(0xFF262626), onSurfaceVariant = Color.White,
@@ -291,7 +316,7 @@ fun InputField(
         value = value,
         onValueChange = onValueChange,
         singleLine = true,
-        textStyle = TextStyle(color = Color.White, fontSize = 18.sp),
+        textStyle = TextStyle(color = Color.White, fontSize = 18.sp, fontFamily = Inter),
         cursorBrush = SolidColor(Gold),
         visualTransformation = if (password) PasswordVisualTransformation() else VisualTransformation.None,
         keyboardOptions = KeyboardOptions(keyboardType = if (password) KeyboardType.Password else keyboardType, imeAction = imeAction),

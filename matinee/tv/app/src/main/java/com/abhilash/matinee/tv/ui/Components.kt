@@ -361,13 +361,13 @@ fun Chip(text: String, color: Color = Color(0xFF2C2C2C), textColor: Color = Colo
         modifier = Modifier.background(color, RoundedCornerShape(4.dp)).padding(horizontal = 8.dp, vertical = 3.dp))
 }
 
-// Dolby Vision and HDR10+ show as their logos (brand/source/formats); any other label falls back to text
+// Dolby Vision and HDR (HDR10 and HDR10+ alike) show as logos (brand/source/formats); any other label falls back to text
 @Composable
 fun FormatLogo(label: String, height: Dp, modifier: Modifier = Modifier, fallback: @Composable () -> Unit) {
     val dv = label.equals("Dolby Vision", ignoreCase = true) || label == "DV"
     val logo = when {
         dv -> R.drawable.logo_dolby_vision
-        label == "HDR10+" -> R.drawable.logo_hdr10plus
+        label.startsWith("HDR") -> R.drawable.logo_hdr10plus // HDR10 too: one HDR mark for both
         else -> return fallback()
     }
     val painter = painterResource(logo)

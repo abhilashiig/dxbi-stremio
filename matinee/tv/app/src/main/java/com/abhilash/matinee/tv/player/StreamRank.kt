@@ -161,7 +161,9 @@ fun releaseLabel(s: StreamInfo): String {
     val name = raw.substringAfterLast('/').replace(Regex("""\.(mkv|mp4|avi|m4v|ts|webm)$""", RegexOption.IGNORE_CASE), "")
     val spaced = name.replace(Regex("""_|(?<!\d)(?<!\bH)\.|\.(?!\d)"""), " ").replace(Regex("""\s+"""), " ").trim()
     val after = Regex("""\b(2160p|1440p|1080p|720p|576p|480p|4k|uhd)\b""", RegexOption.IGNORE_CASE).find(spaced)?.let { spaced.substring(it.range.last + 1).trim() }
-    return after?.takeIf { it.length >= 3 } ?: spaced
+    val label = after?.takeIf { it.length >= 3 } ?: spaced
+    // "Show (1080p WEB-DL x265 GRP).mkv" leaves the closing bracket behind
+    return if (label.endsWith(")") && '(' !in label) label.dropLast(1).trim() else label
 }
 
 fun videoSummary(t: StreamTags, text: String) = listOfNotNull(

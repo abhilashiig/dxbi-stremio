@@ -147,6 +147,8 @@ class PlayerLogicTest {
         assertEquals("HEVC · SDR", videoSummary(t, s.text))
         // No resolution in the name: the whole name, cleaned
         assertEquals("Some Movie 1999 BluRay", releaseLabel(StreamInfo("a", "u", "n", "", emptyMap(), "Some_Movie.1999.BluRay.mp4", null)))
+        // Bracketed release info doesn't leave its closing bracket behind
+        assertEquals("HMAX WEB-DL x265 Ghost", releaseLabel(StreamInfo("a", "u", "n", "", emptyMap(), "Warrior - S03E01 (1080p HMAX WEB-DL x265 Ghost).mkv", null)))
         assertEquals("Dolby TrueHD Atmos · 7.1", audioSummary(streamTags("TrueHD.Atmos.7.1"), "TrueHD.Atmos.7.1"))
     }
 }

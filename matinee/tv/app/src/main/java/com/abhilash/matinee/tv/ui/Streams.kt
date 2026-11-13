@@ -34,6 +34,7 @@ import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.focusRestorer
@@ -78,7 +79,7 @@ import com.abhilash.matinee.tv.player.videoSummary
 private val Instant = Color(0xFF3CC47C)
 private val Amber = Color(0xFFFFB74D)
 
-// Two panes: the title and everything about the focused version on the left, a compact list to scan on the right
+// One shelf of version cards per quality, under a billboard with everything about the focused version
 @OptIn(ExperimentalComposeUiApi::class, androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 fun StreamsScreen(route: Route.Streams) {
@@ -94,20 +95,19 @@ fun StreamsScreen(route: Route.Streams) {
         done = true
     }
 
-    // Instant-only and the addon filter are remembered across titles; quality is per visit
+    // Instant-only and the addon filter are remembered across titles
     var instant by remember { mutableStateOf(Settings.instantOnly) }
     var addon by remember { mutableStateOf(Settings.preferredAddon) }
-    var only by remember { mutableStateOf<String?>(null) }
 
     val ranked = remember(results) { rankStreams(results.flatMap { it.streams }.distinctBy { it.url }, caps) }
     val pool = remember(ranked, instant) { if (instant) instantOnly(ranked) else ranked }
     val addons = remember(ranked, addon) { (ranked.map { it.stream.addon } + listOfNotNull(addon)).distinct() }
     val fromAddon = remember(pool, addon) { if (addon == null) pool else pool.filter { it.stream.addon == addon } }
-    val qualityCounts = remember(fromAddon) { fromAddon.groupingBy { quality(it.tags) }.eachCount() }
-    // Best resolution first, ranked within each
-    val streams = remember(fromAddon, only) {
-        QUALITIES.filter { only == null || it == only }.flatMap { q -> fromAddon.filter { quality(it.tags) == q } }
+    // Best resolution first, one shelf each, ranked within it
+    val shelves = remember(fromAddon) {
+        QUALITIES.mapNotNull { q -> fromAddon.filter { quality(it.tags) == q }.takeIf { it.isNotEmpty() }?.let { q to it } }
     }
+    val streams = remember(shelves) { shelves.flatMap { it.second } }
 
     val first = remember { FocusRequester() }
     val showAll = remember { FocusRequester() }
@@ -130,45 +130,38 @@ fun StreamsScreen(route: Route.Streams) {
 
     Box(Modifier.fillMaxSize().background(Color.Black).onPreviewKeyEvent { if (it.type == KeyEventType.KeyDown) touched = true; false }) {
         FullBackdrop(meta.background)
-        Row(Modifier.fillMaxSize().padding(start = Edge, top = 36.dp, end = 32.dp)) {
-            Column(Modifier.width(320.dp).fillMaxHeight().padding(bottom = 28.dp)) {
-                if (meta.logo != null) {
-                    AsyncImage(meta.logo, meta.name, contentScale = ContentScale.Fit, alignment = Alignment.CenterStart,
-                        modifier = Modifier.heightIn(max = 68.dp).widthIn(max = 300.dp))
-                } else {
-                    Text(meta.name, fontSize = 26.sp, fontWeight = FontWeight.Bold, color = Color.White, maxLines = 2, overflow = TextOverflow.Ellipsis)
+        Column(Modifier.fillMaxSize().padding(top = 28.dp)) {
+            Row(Modifier.fillMaxWidth().padding(start = Edge, end = Edge - 4.dp)) {
+                Column(Modifier.weight(1f)) {
+                    if (meta.logo != null) {
+                        AsyncImage(meta.logo, meta.name, contentScale = ContentScale.Fit, alignment = Alignment.CenterStart,
+                            modifier = Modifier.heightIn(max = 52.dp).widthIn(max = 280.dp))
+                    } else {
+                        Text(meta.name, fontSize = 24.sp, fontWeight = FontWeight.Bold, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
+                    val episode = route.video?.takeIf { it.label.isNotEmpty() }?.let { v -> listOf(v.label, v.title).filter { it.isNotEmpty() }.joinToString(" · ") }
+                    val resume = if (route.resumeMs > 0) "Resumes at ${time(route.resumeMs)}" else null
+                    if (episode != null || resume != null) Row(Modifier.padding(top = 8.dp)) {
+                        episode?.let { Text(it, fontSize = 14.sp, fontWeight = FontWeight.Medium, color = Color(0xFFDDDDDD), maxLines = 1, overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f, fill = false)) }
+                        resume?.let { Text((if (episode != null) "  ·  " else "") + it, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = Gold) }
+                    }
+                    val failed = results.filter { it.failed }.map { it.addon }
+                    Text(
+                        buildString {
+                            append("${ranked.size} streams from ${results.count { it.streams.isNotEmpty() }} addons")
+                            if (!done) append(" · loading…")
+                            if (failed.isNotEmpty()) append(" · no answer from ${failed.joinToString()}")
+                        },
+                        fontSize = 12.sp, color = Muted, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 4.dp),
+                    )
                 }
-                route.video?.takeIf { it.label.isNotEmpty() }?.let { v ->
-                    Text(listOf(v.label, v.title).filter { it.isNotEmpty() }.joinToString(" · "), fontSize = 15.sp, fontWeight = FontWeight.Medium,
-                        color = Color(0xFFDDDDDD), maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 10.dp))
-                }
-                if (route.resumeMs > 0) Text("Resumes at ${time(route.resumeMs)}", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Gold,
-                    modifier = Modifier.padding(top = 4.dp))
-                Spacer(Modifier.height(18.dp))
-                Box(Modifier.weight(1f)) { detail?.let { StreamDetail(it, best = it === streams.first()) } }
-                val failed = results.filter { it.failed }.map { it.addon }
-                Text(
-                    buildString {
-                        append("${ranked.size} streams from ${results.count { it.streams.isNotEmpty() }} addons")
-                        if (!done) append(" · loading…")
-                        if (failed.isNotEmpty()) append("\nNo answer from ${failed.joinToString()}")
-                    },
-                    fontSize = 12.sp, color = Muted, lineHeight = 16.sp, modifier = Modifier.padding(top = 12.dp),
-                )
-            }
-            Spacer(Modifier.width(28.dp))
-            Column(Modifier.weight(1f).fillMaxHeight()) {
                 // Rows scroll only when a pill would be hidden: the TV default pivot cut "Instant only" off at the left
                 if (ranked.isNotEmpty()) CompositionLocalProvider(LocalBringIntoViewSpec provides rememberMinimalScroll()) {
-                    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(4.dp), modifier = Modifier.focusRestorer()) {
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(4.dp),
+                        modifier = Modifier.widthIn(max = 560.dp).focusRestorer()) {
                         item { FilterPill("Instant only", instant, icon = true) { instant = !instant; Settings.instantOnly = instant } }
                         item { Spacer(Modifier.width(8.dp)) }
-                        item { FilterPill("All qualities", only == null) { only = null } }
-                        items(QUALITIES.filter { (qualityCounts[it] ?: 0) > 0 || it == only }, key = { it }) { q ->
-                            FilterPill("$q  ${qualityCounts[q] ?: 0}", only == q) { only = if (only == q) null else q }
-                        }
-                    }
-                    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(4.dp), modifier = Modifier.focusRestorer()) {
                         item { FilterPill("All addons", addon == null) { addon = null; Settings.preferredAddon = null } }
                         items(addons, key = { it }) { a ->
                             FilterPill("$a  ${pool.count { it.stream.addon == a }}", addon == a) {
@@ -177,40 +170,63 @@ fun StreamsScreen(route: Route.Streams) {
                             }
                         }
                     }
-                    Spacer(Modifier.height(10.dp))
                 }
-                Box(Modifier.weight(1f).fillMaxWidth()) {
-                    when {
-                        streams.isNotEmpty() -> LazyColumn(
-                            state = list, verticalArrangement = Arrangement.spacedBy(6.dp),
-                            contentPadding = PaddingValues(start = 4.dp, end = 4.dp, top = 4.dp, bottom = 48.dp),
-                        ) {
-                            val top = streams.first()
-                            items(streams, key = { it.stream.url }) { r ->
-                                StreamRow(
-                                    r, if (r === top) Modifier.focusRequester(first) else Modifier,
-                                    tag = if (r === top) "BEST" else null, onFocus = { focusedUrl = r.stream.url },
-                                ) { play(r) }
+            }
+            // Fixed height, so the shelves don't jump as focus moves between versions that say more or less about themselves
+            Box(Modifier.fillMaxWidth().height(170.dp).padding(start = Edge, end = Edge, top = 18.dp)) {
+                detail?.let { StreamBillboard(it, best = it === streams.first()) }
+            }
+            Box(Modifier.weight(1f).fillMaxWidth()) {
+                when {
+                    streams.isNotEmpty() -> CompositionLocalProvider(LocalBringIntoViewSpec provides rememberPivot(36.dp)) {
+                        val top = streams.first()
+                        LazyColumn(state = list, contentPadding = PaddingValues(top = 4.dp, bottom = 220.dp)) {
+                            items(shelves, key = { it.first }) { (q, versions) ->
+                                Column {
+                                    Text("$q  ·  ${versions.size}", fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = Color.White,
+                                        modifier = Modifier.padding(start = Edge))
+                                    // Vertical room so a focused card's scale and gold edge aren't clipped by the row
+                                    // A lazy row keeps its first visible card in place when better versions arrive ahead of it
+                                    // (each addon's answer re-ranks the shelf), leaving the best ones scrolled off to the left
+                                    val row = rememberLazyListState()
+                                    var rowFocused by remember { mutableStateOf(false) }
+                                    LaunchedEffect(versions.first().stream.url) { if (!rowFocused || !touched) row.scrollToItem(0) }
+                                    CompositionLocalProvider(LocalBringIntoViewSpec provides rememberPivot()) {
+                                        LazyRow(
+                                            state = row,
+                                            contentPadding = PaddingValues(horizontal = Edge, vertical = 10.dp),
+                                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                            modifier = Modifier.onFocusChanged { rowFocused = it.hasFocus }.focusRestorer(),
+                                        ) {
+                                            items(versions, key = { it.stream.url }) { r ->
+                                                StreamCard(
+                                                    r, best = r === top, modifier = if (r === top) Modifier.focusRequester(first) else Modifier,
+                                                    onFocus = { focusedUrl = r.stream.url },
+                                                ) { play(r) }
+                                            }
+                                        }
+                                    }
+                                }
                             }
                         }
-                        ranked.isNotEmpty() && done -> Column(Modifier.align(Alignment.Center).width(440.dp)) {
-                            Text(
-                                if (instant && pool.isEmpty()) "None of these streams are ready to play instantly. Uncached ones can take a while to start, or fail."
-                                else "Nothing matches these filters.",
-                                fontSize = 16.sp, color = Color.White,
-                            )
-                            Spacer(Modifier.height(16.dp))
-                            Button(onClick = { instant = false; addon = null; only = null }, modifier = Modifier.focusRequester(showAll)) {
-                                Text("Show all ${ranked.size} streams")
-                            }
-                            LaunchedEffect(Unit) { if (!touched) runCatching { showAll.requestFocus() } }
-                        }
-                        done -> Text(
-                            "No playable streams found.\n\nMatinee plays direct links from your debrid and HTTP addons. Torrent-only results are hidden.",
-                            fontSize = 16.sp, color = Color.White, modifier = Modifier.align(Alignment.Center).width(440.dp),
-                        )
-                        else -> Spinner(Modifier.align(Alignment.Center))
                     }
+                    ranked.isNotEmpty() && done -> Column(Modifier.align(Alignment.Center).width(440.dp)) {
+                        Text(
+                            if (instant && pool.isEmpty()) "None of these streams are ready to play instantly. Uncached ones can take a while to start, or fail."
+                            else "Nothing matches these filters.",
+                            fontSize = 16.sp, color = Color.White,
+                        )
+                        Spacer(Modifier.height(16.dp))
+                        Button(onClick = { instant = false; addon = null }, modifier = Modifier.focusRequester(showAll)) {
+                            Text("Show all ${ranked.size} streams")
+                        }
+                        LaunchedEffect(Unit) { if (!touched) runCatching { showAll.requestFocus() } }
+                    }
+                    done -> Text(
+                        "No playable streams found.\n\nMatinee plays direct links from your debrid and HTTP addons. Torrent-only results are hidden.",
+                        fontSize = 16.sp, color = Color.White, modifier = Modifier.align(Alignment.Center).width(440.dp),
+                    )
+                    else -> Spinner(Modifier.align(Alignment.Center))
                 }
             }
         }
@@ -218,28 +234,30 @@ fun StreamsScreen(route: Route.Streams) {
     LaunchedEffect(streams.firstOrNull()?.stream?.url) {
         if (streams.isEmpty() || touched) return@LaunchedEffect
         list.scrollToItem(0)
-        withFrameNanos { }
-        runCatching { first.requestFocus() }
+        // The new best may be a frame or two from being laid out (its shelf scrolling back, or a new shelf above)
+        repeat(10) {
+            withFrameNanos { }
+            if (runCatching { first.requestFocus(FocusDirection.Enter) }.getOrDefault(false)) return@LaunchedEffect
+        }
     }
 }
 
-// Everything about one version, in words rather than the addon's raw text
+// Everything about the focused version, in words rather than the addon's raw text
 @Composable
-private fun StreamDetail(r: RankedStream, best: Boolean) {
+private fun StreamBillboard(r: RankedStream, best: Boolean) {
     val t = r.tags
     val text = r.stream.text
-    Column(Modifier.fillMaxWidth().glass(RoundedCornerShape(18.dp)).padding(18.dp)) {
+    Column(Modifier.fillMaxSize()) {
         Text(if (best) "BEST FOR THIS TV" else "SELECTED VERSION", fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.5.sp, color = Gold)
-        Row(verticalAlignment = Alignment.Bottom, modifier = Modifier.padding(top = 6.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 4.dp)) {
             Text(quality(t).let { if (it == "Other") "Unknown" else it }, fontSize = 30.sp, fontWeight = FontWeight.Black,
                 color = if (t.height >= 2160) Gold else Color.White)
             hdrLabel(t)?.let { label ->
-                FormatLogo(label, height = if (label == "HDR10+") 18.dp else 26.dp, modifier = Modifier.padding(start = 12.dp, bottom = 4.dp)) {
-                    Text(label, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = Gold, modifier = Modifier.padding(start = 10.dp, bottom = 4.dp))
+                FormatLogo(label, height = if (label.startsWith("HDR")) 18.dp else 26.dp, modifier = Modifier.padding(start = 14.dp)) {
+                    Text(label, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = Gold, modifier = Modifier.padding(start = 12.dp))
                 }
             }
-        }
-        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 4.dp)) {
+            Spacer(Modifier.width(18.dp))
             when (t.cached) {
                 true -> {
                     Icon(Icons.Bolt, null, Modifier.size(14.dp), tint = Instant)
@@ -250,15 +268,55 @@ private fun StreamDetail(r: RankedStream, best: Boolean) {
             }
             Text((if (t.cached != null) "  ·  " else "") + r.stream.addon, fontSize = 13.sp, color = Muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
-        Spacer(Modifier.height(14.dp))
-        Spec("Video", videoSummary(t, text))
-        Spec("Audio", audioSummary(t, text))
-        Spec("Source", sourceLabel(text))
-        Spec("Size", sizeLabel(t.sizeBytes))
-        (r.stream.filename ?: r.stream.description.takeIf { it.isNotBlank() })?.let {
-            Text(it, fontSize = 12.sp, color = Muted, maxLines = 3, overflow = TextOverflow.Ellipsis, lineHeight = 16.sp, modifier = Modifier.padding(top = 12.dp))
+        Row(Modifier.padding(top = 8.dp)) {
+            Column(Modifier.weight(1f)) {
+                Spec("Video", videoSummary(t, text))
+                Spec("Audio", audioSummary(t, text))
+            }
+            Column(Modifier.weight(1f)) {
+                Spec("Source", sourceLabel(text))
+                Spec("Size", sizeLabel(t.sizeBytes))
+            }
         }
-        r.warning?.let { Text(it, fontSize = 13.sp, color = Amber, lineHeight = 17.sp, modifier = Modifier.padding(top = 10.dp)) }
+        r.warning?.let { Text("⚠ $it", fontSize = 13.sp, color = Amber, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 6.dp)) }
+            ?: (r.stream.filename ?: r.stream.description.takeIf { it.isNotBlank() })?.let {
+                Text(it, fontSize = 12.sp, color = Muted, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 6.dp))
+            }
+    }
+}
+
+// A version on its shelf: HDR type, what tells the file apart, audio and size
+@Composable
+private fun StreamCard(r: RankedStream, best: Boolean, modifier: Modifier = Modifier, onFocus: () -> Unit, onClick: () -> Unit) {
+    val t = r.tags
+    val shape = RoundedCornerShape(12.dp)
+    Surface(
+        onClick = onClick,
+        modifier = modifier.width(232.dp).height(100.dp).onFocusChanged { if (it.hasFocus) onFocus() },
+        shape = ClickableSurfaceDefaults.shape(shape),
+        colors = glassRowColors(),
+        border = glassRowBorder(shape),
+        scale = ClickableSurfaceDefaults.scale(focusedScale = 1.05f),
+    ) {
+        Column(Modifier.fillMaxSize().padding(horizontal = 12.dp, vertical = 10.dp)) {
+            Row(Modifier.height(20.dp), verticalAlignment = Alignment.CenterVertically) {
+                val hdr = hdrShort(t)
+                if (hdr != null) FormatLogo(hdr, height = if (hdr.startsWith("HDR")) 11.dp else 17.dp) {
+                    Text(hdr, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Gold)
+                } else Text("SDR", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Muted)
+                Spacer(Modifier.weight(1f))
+                if (r.warning != null) Text("⚠", fontSize = 13.sp, color = Amber, modifier = Modifier.padding(start = 6.dp))
+                if (t.cached == true) Icon(Icons.Bolt, "Instant", Modifier.padding(start = 6.dp).size(14.dp), tint = Instant)
+                if (best) Box(Modifier.padding(start = 6.dp)) { Chip("BEST", Gold, Color.Black) }
+            }
+            Text(releaseLabel(r.stream), fontSize = 13.sp, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis,
+                lineHeight = 16.sp, modifier = Modifier.padding(top = 6.dp).weight(1f))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(audioSummary(t, r.stream.text) ?: r.stream.addon, fontSize = 11.sp, color = Muted, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f))
+                Text(sizeLabel(t.sizeBytes) ?: "", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFFDDDDDD), modifier = Modifier.padding(start = 6.dp))
+            }
+        }
     }
 }
 
@@ -297,7 +355,7 @@ fun StreamRow(r: RankedStream, modifier: Modifier = Modifier, tag: String? = nul
             Column(Modifier.width(56.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(if (q == "Other") "—" else q, fontSize = 17.sp, fontWeight = FontWeight.Black, color = if (t.height >= 2160) Gold else Color.White)
                 hdrShort(t)?.let { label ->
-                    FormatLogo(label, height = if (label == "HDR10+") 10.dp else 15.dp, modifier = Modifier.padding(top = 2.dp)) {
+                    FormatLogo(label, height = if (label.startsWith("HDR")) 10.dp else 15.dp, modifier = Modifier.padding(top = 2.dp)) {
                         Text(label, fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Gold)
                     }
                 }

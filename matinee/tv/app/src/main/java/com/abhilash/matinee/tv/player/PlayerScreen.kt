@@ -323,7 +323,7 @@ private fun Badges(badges: List<String>) {
         badges.forEach { b ->
             val premium = b.startsWith("DOLBY") || b.startsWith("HDR") || b == "DTS:X" || b == "HLG"
             val color = if (premium) Gold else Color.White
-            FormatLogo(b, height = if (b == "HDR10+") 16.dp else 22.dp) {
+            FormatLogo(b, height = if (b.startsWith("HDR")) 16.dp else 22.dp) {
                 Text(
                     b, fontSize = 12.sp, fontWeight = FontWeight.Black, letterSpacing = 1.2.sp, color = color,
                     modifier = Modifier.border(1.5.dp, color.copy(alpha = 0.8f), RoundedCornerShape(4.dp)).padding(horizontal = 8.dp, vertical = 3.dp),
